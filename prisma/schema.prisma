@@ -6,3 +6,148 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum SeatHoldStatus {
+  active
+  expired
+  released
+  converted
+}
+
+enum ReservationStatus {
+  confirmed
+  cancelled
+}
+
+enum PaymentStatus {
+  checkout_created
+  processing
+  succeeded
+  requires_review
+  failed
+  expired
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  sessions     UserSession[]
+  holds        SeatHold[]
+  reservations Reservation[]
+  payments     Payment[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  sessionFamilyId  String    @map("session_family_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  csrfTokenHash    String    @map("csrf_token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  rotatedAt        DateTime? @map("rotated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionFamilyId])
+  @@map("user_sessions")
+}
+
+model Seat {
+  id           String        @id
+  label        String        @unique
+  sortOrder    Int           @unique @map("sort_order")
+  isEnabled    Boolean       @default(true) @map("is_enabled")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  holds        SeatHold[]
+  reservations Reservation[]
+
+  @@map("seats")
+}
+
+model SeatHold {
+  id          String         @id @default(cuid())
+  seatId      String         @map("seat_id")
+  userId      String         @map("user_id")
+  status      SeatHoldStatus @default(active)
+  expiresAt   DateTime       @map("expires_at")
+  releasedAt  DateTime?      @map("released_at")
+  convertedAt DateTime?      @map("converted_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  seat        Seat           @relation(fields: [seatId], references: [id], onDelete: Restrict)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reservation Reservation?
+  payments    Payment[]
+
+  @@index([seatId])
+  @@index([userId])
+  @@index([status, expiresAt])
+  @@map("seat_holds")
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  seatId      String            @map("seat_id")
+  userId      String            @map("user_id")
+  seatHoldId  String            @unique @map("seat_hold_id")
+  status      ReservationStatus @default(confirmed)
+  confirmedAt DateTime          @default(now()) @map("confirmed_at")
+  cancelledAt DateTime?         @map("cancelled_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  seat        Seat              @relation(fields: [seatId], references: [id], onDelete: Restrict)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seatHold    SeatHold          @relation(fields: [seatHoldId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+  @@index([seatId, status])
+  @@map("reservations")
+}
+
+model Payment {
+  id                      String        @id @default(cuid())
+  userId                  String        @map("user_id")
+  seatHoldId              String        @map("seat_hold_id")
+  stripeCheckoutSessionId String?       @unique @map("stripe_checkout_session_id")
+  stripePaymentIntentId   String?       @unique @map("stripe_payment_intent_id")
+  checkoutUrl             String?       @map("checkout_url")
+  amountCents             Int           @map("amount_cents")
+  currency                String
+  providerStatus          String?       @map("provider_status")
+  status                  PaymentStatus @default(checkout_created)
+  requiresReviewReason    String?       @map("requires_review_reason")
+  metadata                Json?
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+  user                    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seatHold                SeatHold      @relation(fields: [seatHoldId], references: [id], onDelete: Restrict)
+  events                  PaymentEvent[]
+
+  @@index([userId])
+  @@index([seatHoldId])
+  @@index([status])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  stripeEventId String    @id @map("id")
+  eventType     String    @map("type")
+  paymentId     String?   @map("payment_id")
+  payment       Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  payload       Json
+  processedAt   DateTime? @map("processed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([paymentId])
+  @@index([eventType])
+  @@map("payment_events")
+}
