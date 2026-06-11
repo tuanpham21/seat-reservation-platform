@@ -27,6 +27,16 @@ type SessionUser = {
   email: string;
 };
 
+class RefreshTokenReuseDetected extends Error {
+  constructor(
+    readonly sessionFamilyId: string,
+    readonly detectedAt: Date
+  ) {
+    super("Refresh token reuse detected.");
+    this.name = "RefreshTokenReuseDetected";
+  }
+}
+
 async function issueSession(user: SessionUser, sessionFamilyId = createSessionFamilyId()) {
   const now = new Date();
   const refreshToken = createOpaqueToken();
@@ -92,84 +102,88 @@ export async function refreshUserSession(refreshToken: string, csrfToken: string
   const refreshTokenHash = hashToken(refreshToken);
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
-    const existing = await tx.userSession.findUnique({
-      where: { refreshTokenHash },
-      include: { user: { select: { id: true, email: true } } }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.userSession.findUnique({
+        where: { refreshTokenHash },
+        include: { user: { select: { id: true, email: true } } }
+      });
+
+      if (!existing) {
+        throw new AuthError("User session is missing.", "missing_session");
+      }
+
+      if (!secureCompareHash(csrfToken, existing.csrfTokenHash)) {
+        throw new AuthError("CSRF check failed.", "csrf_failed");
+      }
+
+      if (existing.revokedAt || existing.rotatedAt) {
+        throw new RefreshTokenReuseDetected(existing.sessionFamilyId, now);
+      }
+
+      if (isPast(existing.expiresAt, now)) {
+        await tx.userSession.update({
+          where: { id: existing.id },
+          data: { revokedAt: now }
+        });
+        throw new AuthError("User session expired.", "invalid_session");
+      }
+
+      const rotated = await tx.userSession.updateMany({
+        where: {
+          id: existing.id,
+          refreshTokenHash,
+          revokedAt: null,
+          rotatedAt: null,
+          expiresAt: { gt: now }
+        },
+        data: {
+          rotatedAt: now,
+          revokedAt: now
+        }
+      });
+
+      if (rotated.count !== 1) {
+        throw new RefreshTokenReuseDetected(existing.sessionFamilyId, now);
+      }
+
+      const nextRefreshToken = createOpaqueToken();
+      const nextCsrfToken = createOpaqueToken();
+
+      await tx.userSession.create({
+        data: {
+          userId: existing.userId,
+          sessionFamilyId: existing.sessionFamilyId,
+          refreshTokenHash: hashToken(nextRefreshToken),
+          csrfTokenHash: hashToken(nextCsrfToken),
+          expiresAt: addDays(now, env.REFRESH_SESSION_TTL_DAYS)
+        }
+      });
+
+      const accessToken = await signAccessToken({
+        sub: existing.user.id,
+        email: existing.user.email,
+        sessionFamilyId: existing.sessionFamilyId
+      });
+
+      return {
+        accessToken,
+        refreshToken: nextRefreshToken,
+        csrfToken: nextCsrfToken,
+        user: existing.user
+      };
     });
-
-    if (!existing) {
-      throw new AuthError("User session is missing.", "missing_session");
-    }
-
-    if (!secureCompareHash(csrfToken, existing.csrfTokenHash)) {
-      throw new AuthError("CSRF check failed.", "csrf_failed");
-    }
-
-    if (existing.revokedAt || existing.rotatedAt) {
-      await tx.userSession.updateMany({
-        where: { sessionFamilyId: existing.sessionFamilyId, revokedAt: null },
-        data: { revokedAt: now }
+  } catch (error) {
+    if (error instanceof RefreshTokenReuseDetected) {
+      await prisma.userSession.updateMany({
+        where: { sessionFamilyId: error.sessionFamilyId, revokedAt: null },
+        data: { revokedAt: error.detectedAt }
       });
       throw new AuthError("Refresh token reuse detected.", "invalid_session");
     }
 
-    if (isPast(existing.expiresAt, now)) {
-      await tx.userSession.update({
-        where: { id: existing.id },
-        data: { revokedAt: now }
-      });
-      throw new AuthError("User session expired.", "invalid_session");
-    }
-
-    const rotated = await tx.userSession.updateMany({
-      where: {
-        id: existing.id,
-        refreshTokenHash,
-        revokedAt: null,
-        rotatedAt: null,
-        expiresAt: { gt: now }
-      },
-      data: {
-        rotatedAt: now,
-        revokedAt: now
-      }
-    });
-
-    if (rotated.count !== 1) {
-      await tx.userSession.updateMany({
-        where: { sessionFamilyId: existing.sessionFamilyId, revokedAt: null },
-        data: { revokedAt: now }
-      });
-      throw new AuthError("Refresh token reuse detected.", "invalid_session");
-    }
-
-    const nextRefreshToken = createOpaqueToken();
-    const nextCsrfToken = createOpaqueToken();
-
-    await tx.userSession.create({
-      data: {
-        userId: existing.userId,
-        sessionFamilyId: existing.sessionFamilyId,
-        refreshTokenHash: hashToken(nextRefreshToken),
-        csrfTokenHash: hashToken(nextCsrfToken),
-        expiresAt: addDays(now, env.REFRESH_SESSION_TTL_DAYS)
-      }
-    });
-
-    const accessToken = await signAccessToken({
-      sub: existing.user.id,
-      email: existing.user.email,
-      sessionFamilyId: existing.sessionFamilyId
-    });
-
-    return {
-      accessToken,
-      refreshToken: nextRefreshToken,
-      csrfToken: nextCsrfToken,
-      user: existing.user
-    };
-  });
+    throw error;
+  }
 }
 
 export async function logoutUserSession(refreshToken: string, csrfToken: string) {
