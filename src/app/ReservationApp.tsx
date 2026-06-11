@@ -52,7 +52,7 @@ function readStoredAuth(): AuthState | null {
 
 function statusLabel(status: Seat["status"]) {
   if (status === "held_by_you") return "Held by you";
-  if (status === "held") return "Held";
+  if (status === "held" || status === "disabled") return "Unavailable";
   return status[0].toUpperCase() + status.slice(1);
 }
 
@@ -62,6 +62,14 @@ function formatCountdown(expiresAt: string | null, now: number) {
   const minutes = Math.floor(remaining / 60_000);
   const seconds = Math.floor((remaining % 60_000) / 1000);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function buildAuthHeaders(base: HeadersInit = {}, auth: AuthState | null = null): Headers {
+  const headers = new Headers(base);
+  if (auth) {
+    headers.set("Authorization", `Bearer ${auth.accessToken}`);
+  }
+  return headers;
 }
 
 export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string }) {
@@ -85,11 +93,14 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     return () => window.clearInterval(timer);
   }, []);
 
-  const activeHold = useMemo(() => seats.find((seat) => seat.hold)?.hold ?? null, [seats]);
-  const authHeader: Record<string, string> = auth
-    ? { Authorization: `Bearer ${auth.accessToken}` }
-    : {};
+  const activeHold = useMemo(() => {
+    const current = seats.find((seat) => {
+      if (!seat.hold) return false;
+      return new Date(seat.hold.expiresAt).getTime() > now;
+    });
 
+    return current?.hold ?? null;
+  }, [now, seats]);
   const storeAuth = (next: AuthState | null) => {
     setAuth(next);
     if (next) {
@@ -99,27 +110,82 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     }
   };
 
-  const loadSeats = useCallback(async () => {
-    const response = await fetch("/api/seats", {
-      headers: auth ? { Authorization: `Bearer ${auth.accessToken}` } : {}
-    });
+  const refreshAuth = useCallback(
+    async (current = auth) => {
+      if (!current) return null;
+
+      const response = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: {
+          "x-csrf-token": current.csrfToken
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          storeAuth(null);
+        }
+        return null;
+      }
+
+      const data = (await response.json()) as AuthState;
+      storeAuth(data);
+      return data;
+    },
+    [auth]
+  );
+
+  const authorizedFetch = useCallback(
+    async (input: string, init: RequestInit = {}, overrideAuth: AuthState | null = auth) => {
+      const first = await fetch(input, {
+        ...init,
+        headers: buildAuthHeaders(init.headers ?? {}, overrideAuth)
+      });
+
+      if (first.status !== 401) {
+        return first;
+      }
+
+      const refreshed = await refreshAuth(overrideAuth);
+      if (!refreshed) {
+        return first;
+      }
+
+      return fetch(input, {
+        ...init,
+        headers: buildAuthHeaders(init.headers ?? {}, refreshed)
+      });
+    },
+    [auth, refreshAuth]
+  );
+
+  const loadSeats = useCallback(async (overrideAuth: AuthState | null = auth) => {
+    const response = await authorizedFetch("/api/seats", {}, overrideAuth);
     if (!response.ok) return;
     const data = (await response.json()) as { seats: Seat[] };
     setSeats(data.seats);
-  }, [auth]);
+  }, [auth, authorizedFetch]);
 
   useEffect(() => {
     void loadSeats();
   }, [loadSeats]);
 
   useEffect(() => {
+    const hasExpiredVisibleHold = seats.some(
+      (seat) => seat.hold && new Date(seat.hold.expiresAt).getTime() <= now
+    );
+
+    if (hasExpiredVisibleHold) {
+      void loadSeats();
+    }
+  }, [loadSeats, now, seats]);
+
+  useEffect(() => {
     if (!paymentId || !auth) return;
 
     let cancelled = false;
     const poll = async () => {
-      const response = await fetch(`/api/payments/${paymentId}`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` }
-      });
+      const response = await authorizedFetch(`/api/payments/${paymentId}`);
       if (!response.ok || cancelled) return;
       const data = (await response.json()) as PaymentStatus;
       setPayment(data);
@@ -134,7 +200,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [auth, loadSeats, paymentId]);
+  }, [auth, authorizedFetch, loadSeats, paymentId]);
 
   async function submitAuth() {
     setBusy(true);
@@ -166,7 +232,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     storeAuth(null);
     setPayment(null);
     setPaymentId("");
-    await loadSeats();
+    await loadSeats(null);
   }
 
   async function holdSeat(seatId: string) {
@@ -174,12 +240,9 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/seats/hold", {
+      const response = await authorizedFetch("/api/seats/hold", {
         method: "POST",
-        headers: {
-          ...authHeader,
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ seatId })
       });
       const data = await response.json();
@@ -198,12 +261,9 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/payments/checkout", {
+      const response = await authorizedFetch("/api/payments/checkout", {
         method: "POST",
-        headers: {
-          ...authHeader,
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ holdId: activeHold.id })
       });
       const data = await response.json();
@@ -222,7 +282,14 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
           <p className="eyebrow">Seat Reservation Platform</p>
           <h1>Three seats. One active hold. Payment-confirmed reservations.</h1>
         </div>
-        <button className="icon-button" onClick={loadSeats} title="Refresh seats" type="button">
+        <button
+          className="icon-button"
+          onClick={() => {
+            void loadSeats();
+          }}
+          title="Refresh seats"
+          type="button"
+        >
           <RefreshCw aria-hidden="true" size={18} />
         </button>
       </section>
@@ -297,7 +364,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
                   type="button"
                 >
                   <span>{seat.label}</span>
-                  <strong>{statusLabel(seat.status)}</strong>
+                <strong>{statusLabel(seat.status)}</strong>
                   {countdown ? <em>{countdown}</em> : null}
                 </button>
               );
@@ -351,4 +418,5 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       </section>
     </main>
   );
+
 }

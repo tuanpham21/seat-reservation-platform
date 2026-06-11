@@ -1,14 +1,11 @@
-import { Prisma, ReservationStatus, SeatHoldStatus } from "@prisma/client";
+import { ReservationStatus, SeatHoldStatus } from "@prisma/client";
 import {
   SeatDomainError,
   isPrismaUniqueConstraintError
 } from "../seats/errors";
 import { prisma } from "../prisma";
 import { expireActiveSeatHolds } from "../seats/service";
-
-const SERIALIZABLE_TRANSACTION = {
-  isolationLevel: Prisma.TransactionIsolationLevel.Serializable
-} as const;
+import { runSerializableTransaction } from "../transactions";
 
 export async function confirmReservationFromHold(input: {
   holdId: string;
@@ -18,7 +15,7 @@ export async function confirmReservationFromHold(input: {
   const now = input.now ?? new Date();
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await runSerializableTransaction(async (tx) => {
       await expireActiveSeatHolds(tx, now);
 
       const hold = await tx.seatHold.findUnique({
@@ -75,7 +72,7 @@ export async function confirmReservationFromHold(input: {
           confirmedAt: now
         }
       });
-    }, SERIALIZABLE_TRANSACTION);
+    });
   } catch (error) {
     if (isPrismaUniqueConstraintError(error)) {
       throw new SeatDomainError("RESERVATION_CONFLICT", "Reservation conflicts with existing state.");

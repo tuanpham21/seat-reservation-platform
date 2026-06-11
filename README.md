@@ -46,6 +46,8 @@ npm run build
 npm run package:submission
 ```
 
+`npm test` runs unit tests and skips database-backed race/idempotency tests unless `RUN_DB_TESTS=1` is set.
+
 ## Environment
 
 Copy `.env.example` to `.env` and replace placeholders locally. Do not commit `.env` files.
@@ -134,8 +136,10 @@ npm run test:integration
 Those integration tests verify:
 
 - two concurrent authenticated users attempting the same seat produce only one active hold;
+- selecting a different seat releases the authenticated user's previous active hold;
 - concurrent refresh reuse allows one rotation and then revokes the token family;
-- duplicate Stripe webhook delivery creates only one processing effect.
+- duplicate Stripe webhook delivery creates only one processing effect;
+- successful Stripe payment after hold expiry becomes `requires_review` without creating a reservation.
 
 ## NPM Scripts
 

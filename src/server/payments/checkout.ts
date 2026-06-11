@@ -1,4 +1,4 @@
-import { PaymentStatus, SeatHoldStatus } from "@prisma/client";
+import { PaymentStatus, Prisma, SeatHoldStatus } from "@prisma/client";
 import { z } from "zod";
 
 import { PaymentHttpError } from "./errors";
@@ -40,22 +40,17 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     throw new PaymentHttpError(409, "hold_expired", "Hold expired before payment started.");
   }
 
-  const activePayment = await prisma.payment.findFirst({
-    where: {
-      userId: input.userId,
-      seatHoldId: seatHold.id,
-      status: {
-        in: [PaymentStatus.checkout_created, PaymentStatus.processing]
-      }
-    },
-    select: {
-      id: true,
-      stripeCheckoutSessionId: true,
-      checkoutUrl: true
-    }
-  });
+  const activePayment = await findActivePayment(input.userId, seatHold.id);
 
-  if (activePayment?.checkoutUrl) {
+  if (activePayment) {
+    if (!activePayment.checkoutUrl) {
+      throw new PaymentHttpError(
+        409,
+        "checkout_initializing",
+        "A Checkout Session is already being prepared for this hold."
+      );
+    }
+
     return {
       paymentId: activePayment.id,
       checkoutSessionId: activePayment.stripeCheckoutSessionId,
@@ -63,21 +58,15 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     };
   }
 
-  const payment = await prisma.payment.create({
-    data: {
-      userId: input.userId,
-      seatHoldId: seatHold.id,
-      amountCents: SEAT_RESERVATION_PRICE.unitAmountCents,
-      currency: SEAT_RESERVATION_PRICE.currency,
-      status: PaymentStatus.checkout_created,
-      metadata: {
-        pricing: "fixed_usd_50"
-      }
-    },
-    select: {
-      id: true
-    }
-  });
+  const payment = await createPaymentRecord(input.userId, seatHold.id);
+
+  if (payment.checkoutUrl && payment.stripeCheckoutSessionId) {
+    return {
+      paymentId: payment.id,
+      checkoutSessionId: payment.stripeCheckoutSessionId,
+      checkoutUrl: payment.checkoutUrl
+    };
+  }
 
   const metadata = buildCheckoutMetadata({
     paymentId: payment.id,
@@ -85,29 +74,34 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     userId: input.userId
   });
 
-  const session = await getStripeClient().checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    client_reference_id: payment.id,
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: SEAT_RESERVATION_PRICE.currency,
-          unit_amount: SEAT_RESERVATION_PRICE.unitAmountCents,
-          product_data: {
-            name: SEAT_RESERVATION_PRICE.productName
+  const session = await getStripeClient().checkout.sessions.create(
+    {
+      mode: "payment",
+      payment_method_types: ["card"],
+      client_reference_id: payment.id,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: SEAT_RESERVATION_PRICE.currency,
+            unit_amount: SEAT_RESERVATION_PRICE.unitAmountCents,
+            product_data: {
+              name: SEAT_RESERVATION_PRICE.productName
+            }
           }
         }
-      }
-    ],
-    metadata,
-    payment_intent_data: {
-      metadata
+      ],
+      metadata,
+      payment_intent_data: {
+        metadata
+      },
+      success_url: `${input.requestOrigin}/payments/success?paymentId=${payment.id}`,
+      cancel_url: `${input.requestOrigin}/payments/cancel?paymentId=${payment.id}`
     },
-    success_url: `${input.requestOrigin}/payments/success?paymentId=${payment.id}`,
-    cancel_url: `${input.requestOrigin}/payments/cancel?paymentId=${payment.id}`
-  });
+    {
+      idempotencyKey: `seat-hold:${seatHold.id}`
+    }
+  );
 
   if (!session.url) {
     throw new PaymentHttpError(
@@ -133,4 +127,79 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     checkoutSessionId: session.id,
     checkoutUrl: session.url
   };
+}
+
+async function findActivePayment(userId: string, seatHoldId: string) {
+  return prisma.payment.findFirst({
+    where: {
+      userId,
+      seatHoldId,
+      status: {
+        in: [PaymentStatus.checkout_created, PaymentStatus.processing]
+      }
+    },
+    select: {
+      id: true,
+      stripeCheckoutSessionId: true,
+      checkoutUrl: true
+    }
+  });
+}
+
+async function createPaymentRecord(userId: string, seatHoldId: string): Promise<{
+  id: string;
+  checkoutUrl: string | null;
+  stripeCheckoutSessionId: string | null;
+}> {
+  try {
+    return await prisma.payment.create({
+      data: {
+        userId,
+        seatHoldId,
+        amountCents: SEAT_RESERVATION_PRICE.unitAmountCents,
+        currency: SEAT_RESERVATION_PRICE.currency,
+        status: PaymentStatus.checkout_created,
+        metadata: {
+          pricing: "fixed_usd_50"
+        }
+      },
+      select: {
+        id: true,
+        checkoutUrl: true,
+        stripeCheckoutSessionId: true
+      }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const activePayment = await findActivePaymentForHold(seatHoldId);
+
+      if (activePayment?.checkoutUrl) {
+        return activePayment;
+      }
+
+      throw new PaymentHttpError(
+        409,
+        "checkout_initializing",
+        "A Checkout Session is already being prepared for this hold."
+      );
+    }
+
+    throw error;
+  }
+}
+
+async function findActivePaymentForHold(seatHoldId: string) {
+  return prisma.payment.findFirst({
+    where: {
+      seatHoldId,
+      status: {
+        in: [PaymentStatus.checkout_created, PaymentStatus.processing]
+      }
+    },
+    select: {
+      id: true,
+      checkoutUrl: true,
+      stripeCheckoutSessionId: true
+    }
+  });
 }

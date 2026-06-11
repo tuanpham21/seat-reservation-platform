@@ -1,7 +1,8 @@
-import { Prisma, PrismaClient, ReservationStatus, SeatHoldStatus } from "@prisma/client";
+import { PrismaClient, ReservationStatus, SeatHoldStatus } from "@prisma/client";
 import { SeatDomainError, isPrismaUniqueConstraintError } from "./errors";
 import { getHoldExpiresAt, getSeatAvailabilityStatus, resolveHoldTtlMs } from "./policy";
 import { prisma } from "../prisma";
+import { runSerializableTransaction } from "../transactions";
 
 type SeatDb = Pick<PrismaClient, "seat" | "seatHold" | "reservation">;
 
@@ -32,10 +33,6 @@ export type SeatHoldResult = {
   replacedHoldId: string | null;
 };
 
-const SERIALIZABLE_TRANSACTION = {
-  isolationLevel: Prisma.TransactionIsolationLevel.Serializable
-} as const;
-
 export async function expireActiveSeatHolds(db: SeatDb = prisma, now = new Date()) {
   const result = await db.seatHold.updateMany({
     where: {
@@ -58,7 +55,7 @@ export async function listSeatAvailability(input: {
 } = {}) {
   const now = input.now ?? new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return runSerializableTransaction(async (tx) => {
     await expireActiveSeatHolds(tx, now);
 
     const seats = await tx.seat.findMany({
@@ -113,7 +110,7 @@ export async function listSeatAvailability(input: {
           : null
       };
     });
-  }, SERIALIZABLE_TRANSACTION);
+  });
 }
 
 export async function holdSeat(input: {
@@ -126,7 +123,7 @@ export async function holdSeat(input: {
   const ttlMs = input.ttlMs ?? resolveHoldTtlMs();
 
   try {
-    return await prisma.$transaction(async (tx): Promise<SeatHoldResult> => {
+    return await runSerializableTransaction(async (tx): Promise<SeatHoldResult> => {
       await expireActiveSeatHolds(tx, now);
 
       const seat = await tx.seat.findUnique({
@@ -231,7 +228,7 @@ export async function holdSeat(input: {
         seat,
         replacedHoldId
       };
-    }, SERIALIZABLE_TRANSACTION);
+    });
   } catch (error) {
     if (isPrismaUniqueConstraintError(error)) {
       throw new SeatDomainError("SEAT_UNAVAILABLE", "Seat or user already has an active hold.");
@@ -248,7 +245,7 @@ export async function releaseActiveHold(input: {
 }) {
   const now = input.now ?? new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return runSerializableTransaction(async (tx) => {
     await expireActiveSeatHolds(tx, now);
 
     const result = await tx.seatHold.updateMany({
@@ -266,5 +263,5 @@ export async function releaseActiveHold(input: {
     return {
       released: result.count > 0
     };
-  }, SERIALIZABLE_TRANSACTION);
+  });
 }

@@ -2,12 +2,14 @@ import { PaymentStatus, Prisma, ReservationStatus, SeatHoldStatus } from "@prism
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import type Stripe from "stripe";
 
-import { getPaymentIdFromMetadata } from "./metadata";
+import { getPaymentIdFromMetadata, STRIPE_METADATA_KEYS } from "./metadata";
 import { prisma } from "../prisma";
+import { runSerializableTransaction } from "../transactions";
 import {
   PAYMENT_TERMINAL_STATES,
   resolveCompletedCheckoutState
 } from "./state";
+import { SEAT_RESERVATION_PRICE } from "./price";
 
 type PaymentTransaction = Prisma.TransactionClient;
 
@@ -18,11 +20,8 @@ type StripeWebhookResult = {
   action?: string;
 };
 
-const SERIALIZABLE_TRANSACTION = {
-  isolationLevel: Prisma.TransactionIsolationLevel.Serializable
-} as const;
-
 const SEAT_ALREADY_RESERVED_REVIEW_REASON = "seat_already_reserved_at_payment_confirmation";
+const STRIPE_VALIDATION_REVIEW_REASON = "stripe_checkout_validation_mismatch";
 
 function isUniqueConstraintError(error: unknown) {
   return error instanceof PrismaClientKnownRequestError && error.code === "P2002";
@@ -75,6 +74,7 @@ async function markEventProcessed(
 
 async function completeCheckoutSession(
   tx: PaymentTransaction,
+  event: Stripe.Event,
   session: Stripe.Checkout.Session,
   now: Date
 ) {
@@ -109,7 +109,28 @@ async function completeCheckoutSession(
   const stripePaymentIntentId = paymentIntentIdFromSession(session);
   const providerStatus = session.payment_status ?? session.status;
 
-  if (PAYMENT_TERMINAL_STATES.has(payment.status)) {
+  const validation = validateCheckoutSession(event, session, payment);
+  if (!validation.valid) {
+    await tx.payment.update({
+      where: {
+        id: payment.id
+      },
+      data: {
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId,
+        providerStatus,
+        status: PaymentStatus.requires_review,
+        requiresReviewReason: STRIPE_VALIDATION_REVIEW_REASON
+      }
+    });
+
+    return {
+      paymentId: payment.id,
+      action: `marked_requires_review_${validation.reason}`
+    };
+  }
+
+  if (PAYMENT_TERMINAL_STATES.has(payment.status) && payment.status !== PaymentStatus.expired) {
     await tx.payment.update({
       where: {
         id: payment.id
@@ -263,7 +284,8 @@ async function expireCheckoutSession(tx: PaymentTransaction, session: Stripe.Che
     },
     select: {
       id: true,
-      status: true
+      status: true,
+      stripeCheckoutSessionId: true
     }
   });
 
@@ -274,7 +296,10 @@ async function expireCheckoutSession(tx: PaymentTransaction, session: Stripe.Che
     };
   }
 
-  if (!PAYMENT_TERMINAL_STATES.has(payment.status)) {
+  if (
+    (!payment.stripeCheckoutSessionId || payment.stripeCheckoutSessionId === session.id) &&
+    !PAYMENT_TERMINAL_STATES.has(payment.status)
+  ) {
     await tx.payment.update({
       where: {
         id: payment.id
@@ -338,7 +363,7 @@ async function applyStripeEvent(tx: PaymentTransaction, event: Stripe.Event, now
   switch (event.type) {
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded":
-      return completeCheckoutSession(tx, event.data.object as Stripe.Checkout.Session, now);
+      return completeCheckoutSession(tx, event, event.data.object as Stripe.Checkout.Session, now);
     case "checkout.session.expired":
       return expireCheckoutSession(tx, event.data.object as Stripe.Checkout.Session);
     case "payment_intent.payment_failed":
@@ -358,7 +383,7 @@ export async function processStripeWebhookEvent(
 ): Promise<StripeWebhookResult> {
   const now = options.now ?? new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return runSerializableTransaction(async (tx) => {
     const isNewEvent = await recordEvent(tx, event);
 
     if (!isNewEvent) {
@@ -377,5 +402,32 @@ export async function processStripeWebhookEvent(
       paymentId: result.paymentId,
       action: result.action
     };
-  }, SERIALIZABLE_TRANSACTION);
+  });
+}
+
+function validateCheckoutSession(
+  event: Stripe.Event,
+  session: Stripe.Checkout.Session,
+  payment: Prisma.PaymentGetPayload<{ include: { seatHold: true } }>
+) {
+  const metadata = session.metadata ?? {};
+
+  const checks = [
+    ["live_mode", event.livemode === false],
+    [
+      "checkout_session",
+      !payment.stripeCheckoutSessionId || payment.stripeCheckoutSessionId === session.id
+    ],
+    ["client_reference", session.client_reference_id === payment.id],
+    ["payment_id", metadata[STRIPE_METADATA_KEYS.paymentId] === payment.id],
+    ["hold_id", metadata[STRIPE_METADATA_KEYS.holdId] === payment.seatHoldId],
+    ["user_id", metadata[STRIPE_METADATA_KEYS.userId] === payment.userId],
+    ["amount", typeof session.amount_total !== "number" || session.amount_total === payment.amountCents],
+    ["currency", !session.currency || session.currency === payment.currency],
+    ["fixed_amount", payment.amountCents === SEAT_RESERVATION_PRICE.unitAmountCents],
+    ["fixed_currency", payment.currency === SEAT_RESERVATION_PRICE.currency]
+  ] as const;
+
+  const failed = checks.find(([, passed]) => !passed);
+  return failed ? { valid: false, reason: failed[0] } : { valid: true, reason: null };
 }

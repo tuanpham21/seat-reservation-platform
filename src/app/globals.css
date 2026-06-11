@@ -310,12 +310,18 @@ dd {
 
 @media (max-width: 560px) {
   .seat-grid {
-    grid-template-columns: 1fr;
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .action-row,
   .section-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .seat-tile {
+    min-height: 88px;
+    padding: 10px;
   }
 }

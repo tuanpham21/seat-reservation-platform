@@ -169,6 +169,9 @@ CREATE INDEX "payments_seat_hold_id_idx" ON "payments"("seat_hold_id");
 CREATE INDEX "payments_status_idx" ON "payments"("status");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "payments_one_active_checkout_per_hold" ON "payments"("seat_hold_id") WHERE "status" IN ('checkout_created', 'processing');
+
+-- CreateIndex
 CREATE INDEX "payment_events_payment_id_idx" ON "payment_events"("payment_id");
 
 -- CreateIndex

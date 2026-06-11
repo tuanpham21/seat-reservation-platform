@@ -96,6 +96,7 @@ Tradeoffs:
 - Only the refresh token hash and CSRF token hash are stored in Postgres.
 - Access tokens are bearer JWTs with `sub`, `email`, and `sessionFamilyId`, expiring after roughly 15 minutes.
 - Refresh rotation is atomic. Presenting a revoked or rotated refresh token revokes the entire token family.
+- Business API bearer checks verify that the token family still has an active unrevoked user session, so logout or token-family theft detection invalidates outstanding access tokens before their natural expiry.
 - Cookie-auth endpoints require a CSRF header token returned from login/register/refresh.
 - Business APIs require `Authorization: Bearer <accessToken>` and do not use the refresh cookie.
 - The browser stores the access token and CSRF token in local storage for assessment simplicity. A production app would revisit this UX/security tradeoff with stronger client hardening.
@@ -139,6 +140,8 @@ Required safeguards:
 - Checkout Session and PaymentIntent IDs should be unique in the database.
 - Reservation creation should be guarded by a unique seat reservation constraint.
 - Checkout creation reuses an existing active checkout for the same hold instead of creating duplicates.
+- Stripe webhook fulfillment validates the stored Checkout Session ID when present, metadata identifiers, expected amount/currency, `client_reference_id`, and test-mode event status before mutating business state.
+- Serializable transactions are retried a small number of times for retryable Postgres serialization/deadlock failures.
 
 Why:
 

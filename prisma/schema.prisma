@@ -88,6 +88,8 @@ model SeatHold {
   reservation Reservation?
   payments    Payment[]
 
+  // Critical active-hold invariants are enforced by raw Postgres partial
+  // unique indexes in prisma/migrations/0001_init/migration.sql.
   @@index([seatId])
   @@index([userId])
   @@index([status, expiresAt])
@@ -108,6 +110,8 @@ model Reservation {
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   seatHold    SeatHold          @relation(fields: [seatHoldId], references: [id], onDelete: Restrict)
 
+  // The confirmed-reservation-per-seat invariant is enforced by a raw
+  // Postgres partial unique index in prisma/migrations/0001_init/migration.sql.
   @@index([userId, status])
   @@index([seatId, status])
   @@map("reservations")
@@ -132,6 +136,8 @@ model Payment {
   seatHold                SeatHold      @relation(fields: [seatHoldId], references: [id], onDelete: Restrict)
   events                  PaymentEvent[]
 
+  // At most one active Checkout can exist per hold. Prisma cannot model the
+  // partial unique index; see prisma/migrations/0001_init/migration.sql.
   @@index([userId])
   @@index([seatHoldId])
   @@index([status])

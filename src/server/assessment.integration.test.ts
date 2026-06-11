@@ -75,6 +75,10 @@ describeDb("assessment integration requirements", () => {
         metadata: { pricing: "fixed_usd_50" }
       }
     });
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { stripeCheckoutSessionId: "cs_test_duplicate" }
+    });
     const event = checkoutCompletedEvent(payment.id, hold.hold.id, user.id);
 
     await expect(processStripeWebhookEvent(event)).resolves.toMatchObject({
@@ -89,6 +93,56 @@ describeDb("assessment integration requirements", () => {
     await expect(prisma.reservation.count({ where: { seatHoldId: hold.hold.id } })).resolves.toBe(1);
     await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
       status: PaymentStatus.succeeded
+    });
+  });
+
+  it("replaces a user's active hold when they choose another seat", async () => {
+    const user = await createUser("replace@example.com");
+
+    const first = await holdSeat({ seatId: "seat-1", userId: user.id });
+    const second = await holdSeat({ seatId: "seat-2", userId: user.id });
+
+    expect(first.replacedHoldId).toBeNull();
+    expect(second.replacedHoldId).toBe(first.hold.id);
+
+    const holds = await prisma.seatHold.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "asc" }
+    });
+
+    expect(holds).toHaveLength(2);
+    expect(holds[0].status).toBe(SeatHoldStatus.released);
+    expect(holds[1].status).toBe(SeatHoldStatus.active);
+    expect(holds.filter((record) => record.status === SeatHoldStatus.active)).toHaveLength(1);
+  });
+
+  it("marks a paid checkout that succeeds after hold expiry as requires_review", async () => {
+    const user = await createUser("late-success@example.com");
+    const hold = await holdSeat({ seatId: "seat-1", userId: user.id, now: new Date("2026-06-11T00:00:00.000Z"), ttlMs: 60_000 });
+    const payment = await prisma.payment.create({
+      data: {
+        userId: user.id,
+        seatHoldId: hold.hold.id,
+        amountCents: 5000,
+        currency: "usd",
+        status: PaymentStatus.checkout_created,
+        metadata: { pricing: "fixed_usd_50" },
+        stripeCheckoutSessionId: "cs_test_late_success"
+      }
+    });
+    const expiredEvent = checkoutCompletedEvent(payment.id, hold.hold.id, user.id, "cs_test_late_success");
+
+    const result = await processStripeWebhookEvent(expiredEvent, {
+      now: new Date("2026-06-11T00:11:00.000Z")
+    });
+
+    expect(result).toMatchObject({
+      status: "processed",
+      action: "marked_requires_review"
+    });
+    await expect(prisma.reservation.count({ where: { seatHoldId: hold.hold.id } })).resolves.toBe(0);
+    await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
+      status: PaymentStatus.requires_review
     });
   });
 });
@@ -122,7 +176,12 @@ async function createUser(email: string) {
   });
 }
 
-function checkoutCompletedEvent(paymentId: string, holdId: string, userId: string) {
+function checkoutCompletedEvent(
+  paymentId: string,
+  holdId: string,
+  userId: string,
+  checkoutSessionId = "cs_test_duplicate"
+) {
   return {
     id: "evt_duplicate_test",
     object: "event",
@@ -134,11 +193,14 @@ function checkoutCompletedEvent(paymentId: string, holdId: string, userId: strin
     request: { id: null, idempotency_key: null },
     data: {
       object: {
-        id: "cs_test_duplicate",
+        id: checkoutSessionId,
         object: "checkout.session",
         payment_status: "paid",
         status: "complete",
         payment_intent: "pi_test_duplicate",
+        client_reference_id: paymentId,
+        amount_total: 5000,
+        currency: "usd",
         metadata: {
           payment_id: paymentId,
           hold_id: holdId,
