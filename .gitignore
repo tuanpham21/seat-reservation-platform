@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+dist
+.env
+.env*.local
+*.log
+coverage
+prisma/dev.db
+*.sqlite
+*.sqlite3
+*.tsbuildinfo
+.DS_Store
