@@ -2,6 +2,8 @@ node_modules
 .next
 out
 dist
+.idea
+.vscode
 .env
 .env*.local
 *.log

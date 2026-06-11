@@ -5,6 +5,7 @@ type Bucket = {
   resetAt: number;
 };
 
+// TODO(prod): replace per-process buckets with Redis or edge rate limiting before multi-instance deploys.
 const buckets = new Map<string, Bucket>();
 
 export function assertRateLimit(key: string, options = { limit: 10, windowMs: 60_000 }) {

@@ -20,17 +20,21 @@ Implemented reviewer-facing behavior:
 
 ## Quick Start
 
+After cloning, the app can be started with placeholder Stripe keys in three
+commands:
+
 ```bash
 npm ci
 cp .env.example .env
-docker compose up -d postgres
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-npm run dev
+docker compose up -d postgres && npm run db:generate && npm run db:deploy && npm run db:seed && npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+The primary reviewer artifacts are this `README.md`, `DECISIONS.md`, and
+`.env.example`. `REVIEWER_HANDOFF.md` is a short optional checklist with the
+same setup path, preflight command, Stripe webhook steps, and integration-test
+database warning.
 
 Seeded reviewer login:
 
@@ -155,6 +159,7 @@ Those integration tests verify:
 | `npm test` | Run Vitest once. |
 | `npm run test:integration` | Run DB-backed assessment tests with `RUN_DB_TESTS=1`. |
 | `npm run test:watch` | Run Vitest in watch mode. |
+| `npm run reviewer:preflight` | Check reviewer setup, seeded data, and Stripe test-key readiness. |
 | `npm run db:generate` | Generate Prisma client. |
 | `npm run db:migrate` | Run Prisma development migrations. |
 | `npm run db:deploy` | Apply committed migrations. |
@@ -174,6 +179,7 @@ The script writes `dist/seat-reservation-platform-submission.zip` and excludes g
 
 - `node_modules/`
 - `.next/`, `out/`, `dist/`, and coverage output
+- `.idea/`, `.vscode/`, and local workspace context files
 - `.env` and `.env.*` files except `.env.example`
 - logs
 - local SQLite or database files

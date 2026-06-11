@@ -11,9 +11,11 @@ const outputFile = path.join(outputDir, "seat-reservation-platform-submission.zi
 
 const excludedDirectories = new Set([
   ".git",
+  ".idea",
   ".next",
   ".turbo",
   ".vercel",
+  ".vscode",
   "coverage",
   "dist",
   "logs",
@@ -22,7 +24,7 @@ const excludedDirectories = new Set([
   "tmp"
 ]);
 
-const excludedFiles = new Set([".DS_Store", "Thumbs.db"]);
+const excludedFiles = new Set([".DS_Store", "Thumbs.db", "CONTEXT.md"]);
 
 function toZipPath(filePath) {
   return filePath.split(path.sep).join("/");

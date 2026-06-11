@@ -2,6 +2,20 @@
 
 This document is a first-class reviewer artifact for the seat reservation assessment. It captures the intended architecture and tradeoffs for a public app where authenticated users reserve one of three seats after Stripe payment confirmation.
 
+## 0. Run It
+
+After cloning, the local app starts with placeholder Stripe keys in three commands:
+
+```bash
+npm ci
+cp .env.example .env
+docker compose up -d postgres && npm run db:generate && npm run db:deploy && npm run db:seed && npm run dev
+```
+
+Open `http://localhost:3000` and log in with `demo@example.com` / `Password123!`.
+The full payment path requires Stripe test keys and a forwarded webhook; `README.md`
+contains those setup steps.
+
 ## 1. Next.js Modular Monolith
 
 Decision: keep the app as a Next.js modular monolith instead of splitting into separate services.
