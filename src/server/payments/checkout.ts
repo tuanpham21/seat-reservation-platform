@@ -1,11 +1,16 @@
 import { PaymentStatus, Prisma, SeatHoldStatus } from "@prisma/client";
+import type Stripe from "stripe";
 import { z } from "zod";
 
 import { PaymentHttpError } from "./errors";
 import { buildCheckoutMetadata } from "./metadata";
 import { SEAT_RESERVATION_PRICE } from "./price";
 import { prisma } from "../prisma";
-import { getStripeClient } from "./stripe";
+import {
+  getStripeClient,
+  stripeProviderStatusFromError,
+  toStripeCheckoutHttpError
+} from "./stripe";
 
 export const CreateCheckoutRequestSchema = z.object({
   holdId: z.string().min(1)
@@ -58,6 +63,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     };
   }
 
+  const stripe = getStripeClient();
   const payment = await createPaymentRecord(input.userId, seatHold.id);
 
   if (payment.checkoutUrl && payment.stripeCheckoutSessionId) {
@@ -74,34 +80,40 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     userId: input.userId
   });
 
-  const session = await getStripeClient().checkout.sessions.create(
-    {
-      mode: "payment",
-      payment_method_types: ["card"],
-      client_reference_id: payment.id,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: SEAT_RESERVATION_PRICE.currency,
-            unit_amount: SEAT_RESERVATION_PRICE.unitAmountCents,
-            product_data: {
-              name: SEAT_RESERVATION_PRICE.productName
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        payment_method_types: ["card"],
+        client_reference_id: payment.id,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: SEAT_RESERVATION_PRICE.currency,
+              unit_amount: SEAT_RESERVATION_PRICE.unitAmountCents,
+              product_data: {
+                name: SEAT_RESERVATION_PRICE.productName
+              }
             }
           }
-        }
-      ],
-      metadata,
-      payment_intent_data: {
-        metadata
+        ],
+        metadata,
+        payment_intent_data: {
+          metadata
+        },
+        success_url: `${input.requestOrigin}/payments/success?paymentId=${payment.id}`,
+        cancel_url: `${input.requestOrigin}/payments/cancel?paymentId=${payment.id}`
       },
-      success_url: `${input.requestOrigin}/payments/success?paymentId=${payment.id}`,
-      cancel_url: `${input.requestOrigin}/payments/cancel?paymentId=${payment.id}`
-    },
-    {
-      idempotencyKey: `seat-hold:${seatHold.id}`
-    }
-  );
+      {
+        idempotencyKey: `seat-hold:${seatHold.id}`
+      }
+    );
+  } catch (error) {
+    await markPaymentFailed(payment.id, error);
+    throw toStripeCheckoutHttpError(error);
+  }
 
   if (!session.url) {
     throw new PaymentHttpError(
@@ -200,6 +212,18 @@ async function findActivePaymentForHold(seatHoldId: string) {
       id: true,
       checkoutUrl: true,
       stripeCheckoutSessionId: true
+    }
+  });
+}
+
+async function markPaymentFailed(paymentId: string, error: unknown) {
+  await prisma.payment.update({
+    where: {
+      id: paymentId
+    },
+    data: {
+      status: PaymentStatus.failed,
+      providerStatus: stripeProviderStatusFromError(error)
     }
   });
 }

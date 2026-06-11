@@ -6,6 +6,8 @@ import { hashPassword } from "./auth/passwords";
 import { refreshUserSession, registerUser } from "./auth/service";
 import { hashToken } from "./auth/tokens";
 import { processStripeWebhookEvent } from "./payments/webhook";
+import { createCheckoutSession } from "./payments/checkout";
+import { resetStripeClientForTests } from "./payments/stripe";
 import { holdSeat } from "./seats/service";
 
 const runDbTests = process.env.RUN_DB_TESTS === "1";
@@ -94,6 +96,43 @@ describeDb("assessment integration requirements", () => {
     await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
       status: PaymentStatus.succeeded
     });
+  });
+
+  it("does not create a stuck payment when Stripe secret is still a placeholder", async () => {
+    const originalStripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    process.env.STRIPE_SECRET_KEY = "sk_test_replace_me";
+    resetStripeClientForTests();
+
+    try {
+      const user = await createUser("placeholder-stripe@example.com");
+      const hold = await holdSeat({ seatId: "seat-1", userId: user.id });
+
+      await expect(
+        createCheckoutSession({
+          userId: user.id,
+          holdId: hold.hold.id,
+          requestOrigin: "http://localhost:3000"
+        })
+      ).rejects.toMatchObject({
+        status: 503,
+        code: "stripe_secret_placeholder"
+      });
+
+      await expect(
+        prisma.payment.count({
+          where: {
+            seatHoldId: hold.hold.id
+          }
+        })
+      ).resolves.toBe(0);
+    } finally {
+      if (originalStripeSecretKey === undefined) {
+        delete process.env.STRIPE_SECRET_KEY;
+      } else {
+        process.env.STRIPE_SECRET_KEY = originalStripeSecretKey;
+      }
+      resetStripeClientForTests();
+    }
   });
 
   it("replaces a user's active hold when they choose another seat", async () => {

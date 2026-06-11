@@ -111,6 +111,8 @@ Use Stripe Checkout in test mode only for this assessment.
 3. Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET`.
 4. Use Stripe test cards, for example `4242 4242 4242 4242` with any future expiry date, CVC, and postal code.
 
+The bundled `sk_test_replace_me` placeholder is intentionally rejected before checkout starts, so reviewers get a clear configuration response instead of a generic payment failure or a stuck local payment row.
+
 Checkout success redirects should be treated as a user experience signal only. Reservation fulfillment must be driven by verified webhook events so refreshes, retries, and abandoned redirects do not create duplicate reservations.
 
 The success page polls `/api/payments/:paymentId` until the payment reaches `succeeded`, `requires_review`, `failed`, or `expired`.
