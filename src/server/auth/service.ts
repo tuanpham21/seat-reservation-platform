@@ -4,6 +4,7 @@ import { prisma } from "@/server/prisma";
 import { addDays, isPast } from "@/server/time";
 import { AuthError } from "./errors";
 import { hashPassword, verifyPassword } from "./passwords";
+import { loginTimingDummyHash } from "./timing";
 import {
   createOpaqueToken,
   createSessionFamilyId,
@@ -91,7 +92,10 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
     select: { id: true, email: true, passwordHash: true }
   });
 
-  if (!user || !(await verifyPassword(user.passwordHash, password))) {
+  const passwordHash = user?.passwordHash ?? loginTimingDummyHash;
+  const passwordMatches = await verifyPassword(passwordHash, password);
+
+  if (!user || !passwordMatches) {
     throw new AuthError("Email or password is incorrect.", "invalid_credentials");
   }
 

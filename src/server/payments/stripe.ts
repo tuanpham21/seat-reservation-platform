@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { readFileSync } from "node:fs";
 
 import { PaymentHttpError } from "./errors";
 
@@ -10,6 +11,7 @@ type StripeErrorLike = {
 };
 
 const STRIPE_SECRET_PLACEHOLDERS = new Set(["sk_test_replace_me"]);
+const STRIPE_WEBHOOK_SECRET_PLACEHOLDERS = new Set(["whsec_replace_me"]);
 
 export function getStripeSecretKey() {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -51,6 +53,66 @@ export function getStripeClient() {
 
 export function resetStripeClientForTests() {
   cachedStripe = null;
+}
+
+function readSecretFile(path: string | undefined) {
+  if (!path) return null;
+
+  try {
+    const value = readFileSync(path, "utf8").trim();
+    return value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStripeWebhookSecret() {
+  const envSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const fileSecret = readSecretFile(process.env.STRIPE_WEBHOOK_SECRET_FILE);
+  const validFileSecret =
+    fileSecret && fileSecret.startsWith("whsec_") && !STRIPE_WEBHOOK_SECRET_PLACEHOLDERS.has(fileSecret)
+      ? fileSecret
+      : null;
+  const webhookSecret =
+    validFileSecret ??
+    (envSecret && !STRIPE_WEBHOOK_SECRET_PLACEHOLDERS.has(envSecret) ? envSecret : fileSecret);
+
+  if (!webhookSecret || STRIPE_WEBHOOK_SECRET_PLACEHOLDERS.has(webhookSecret)) {
+    throw new PaymentHttpError(
+      500,
+      "stripe_webhook_secret_missing",
+      "STRIPE_WEBHOOK_SECRET is required for webhook verification."
+    );
+  }
+
+  if (!webhookSecret.startsWith("whsec_")) {
+    throw new PaymentHttpError(
+      500,
+      "stripe_webhook_secret_invalid",
+      "Stripe webhook signing secret must start with whsec_."
+    );
+  }
+
+  return webhookSecret;
+}
+
+export function assertStripeCheckoutReady() {
+  getStripeSecretKey();
+
+  try {
+    getStripeWebhookSecret();
+  } catch (error) {
+    if (error instanceof PaymentHttpError) {
+      throw new PaymentHttpError(
+        503,
+        "stripe_webhook_not_ready",
+        "Stripe webhook signing secret is not ready. Start webhook forwarding and retry checkout.",
+        { cause: error.code }
+      );
+    }
+
+    throw error;
+  }
 }
 
 function asStripeError(error: unknown): StripeErrorLike | null {
@@ -96,15 +158,7 @@ export function toStripeCheckoutHttpError(error: unknown) {
 }
 
 export function constructStripeWebhookEvent(rawBody: string, signature: string) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    throw new PaymentHttpError(
-      500,
-      "stripe_webhook_secret_missing",
-      "STRIPE_WEBHOOK_SECRET is required for webhook verification."
-    );
-  }
+  const webhookSecret = getStripeWebhookSecret();
 
   try {
     return getStripeClient().webhooks.constructEvent(rawBody, signature, webhookSecret);

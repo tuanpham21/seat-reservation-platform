@@ -5,8 +5,10 @@ import { z } from "zod";
 import { PaymentHttpError } from "./errors";
 import { buildCheckoutMetadata } from "./metadata";
 import { SEAT_RESERVATION_PRICE } from "./price";
+import { env } from "../env";
 import { prisma } from "../prisma";
 import {
+  assertStripeCheckoutReady,
   getStripeClient,
   stripeProviderStatusFromError,
   toStripeCheckoutHttpError
@@ -19,9 +21,14 @@ export const CreateCheckoutRequestSchema = z.object({
 export type CreateCheckoutSessionInput = {
   userId: string;
   holdId: string;
-  requestOrigin: string;
   now?: Date;
 };
+
+export function buildReturnUrl(path: string, paymentId: string) {
+  const url = new URL(path, env.APP_URL);
+  url.searchParams.set("paymentId", paymentId);
+  return url.toString();
+}
 
 export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   const now = input.now ?? new Date();
@@ -44,6 +51,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   if (now.getTime() >= seatHold.expiresAt.getTime()) {
     throw new PaymentHttpError(409, "hold_expired", "Hold expired before payment started.");
   }
+
+  assertStripeCheckoutReady();
 
   const activePayment = await findActivePayment(input.userId, seatHold.id);
 
@@ -103,8 +112,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
         payment_intent_data: {
           metadata
         },
-        success_url: `${input.requestOrigin}/payments/success?paymentId=${payment.id}`,
-        cancel_url: `${input.requestOrigin}/payments/cancel?paymentId=${payment.id}`
+        success_url: buildReturnUrl("/payments/success", payment.id),
+        cancel_url: buildReturnUrl("/payments/cancel", payment.id)
       },
       {
         idempotencyKey: `seat-hold:${seatHold.id}`

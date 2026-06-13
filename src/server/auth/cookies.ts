@@ -3,6 +3,18 @@ import { env } from "@/server/env";
 
 export const refreshCookieName = "seat_refresh";
 
+export function shouldUseSecureRefreshCookie() {
+  if (env.AUTH_COOKIE_SECURE) {
+    return env.AUTH_COOKIE_SECURE === "true";
+  }
+
+  if (!process.env.APP_URL) {
+    return env.NODE_ENV === "production";
+  }
+
+  return new URL(env.APP_URL).protocol === "https:";
+}
+
 export function readRefreshCookie(request: NextRequest) {
   return request.cookies.get(refreshCookieName)?.value ?? null;
 }
@@ -11,7 +23,7 @@ export function setRefreshCookie(response: NextResponse, refreshToken: string) {
   response.cookies.set(refreshCookieName, refreshToken, {
     httpOnly: true,
     sameSite: "strict",
-    secure: env.NODE_ENV === "production",
+    secure: shouldUseSecureRefreshCookie(),
     path: "/api/auth",
     maxAge: env.REFRESH_SESSION_TTL_DAYS * 24 * 60 * 60
   });
@@ -21,7 +33,7 @@ export function clearRefreshCookie(response: NextResponse) {
   response.cookies.set(refreshCookieName, "", {
     httpOnly: true,
     sameSite: "strict",
-    secure: env.NODE_ENV === "production",
+    secure: shouldUseSecureRefreshCookie(),
     path: "/api/auth",
     maxAge: 0
   });

@@ -36,6 +36,19 @@ The primary reviewer artifacts are this `README.md`, `DECISIONS.md`, and
 same setup path, preflight command, Stripe webhook steps, and integration-test
 database warning.
 
+## Repository Layout
+
+```text
+src/app/                 Next.js routes and the reviewer-facing reservation UI
+src/server/auth/         credentials auth, rotating refresh sessions, cookies
+src/server/seats/        seat availability and active-hold domain logic
+src/server/payments/     Stripe Checkout, webhook verification, fulfillment
+prisma/                  schema, migrations, and reviewer seed data
+scripts/                 reviewer preflight, Docker entrypoint, packaging
+Dockerfile               production-like app container for review
+docker-compose.yml       Postgres, app, and optional Stripe CLI sidecar
+```
+
 Seeded reviewer login:
 
 - email: `demo@example.com`
@@ -52,6 +65,55 @@ npm run package:submission
 
 `npm test` runs unit tests and skips database-backed race/idempotency tests unless `RUN_DB_TESTS=1` is set.
 
+## Docker Reviewer Run
+
+For the lowest-friction review path, run the app and Postgres together:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:3000`. The app container applies committed Prisma
+migrations and reseeds the three seats plus `demo@example.com / Password123!`
+before starting Next.js.
+
+If port 3000 is already in use, set both the published port and callback URL:
+
+```bash
+APP_PORT=3001 APP_URL=http://localhost:3001 docker compose up --build
+```
+
+With the default placeholder Stripe keys, the app still boots and reviewers can
+exercise auth, seat availability, hold replacement, and reserved/held UI states.
+Checkout is intentionally blocked until a real Stripe test key is provided.
+
+For full Stripe Checkout from Docker, keep secrets outside git and run:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_... docker compose --profile stripe up --build
+```
+
+The `stripe-listener` sidecar forwards Stripe webhooks to the app container and
+writes the generated `whsec_...` signing secret into a shared Docker volume. The
+app reads that file when verifying webhook signatures, so reviewers do not need
+to manually paste `STRIPE_WEBHOOK_SECRET` for the Docker path.
+
+Before paying through Checkout, confirm the sidecar has written the generated
+webhook secret:
+
+```bash
+docker compose exec app sh -lc 'test -r /run/stripe/webhook-secret && grep -q "^whsec_" /run/stripe/webhook-secret'
+```
+
+If you are not using the Docker Stripe sidecar, run `stripe listen` locally and
+copy its `whsec_...` value into `STRIPE_WEBHOOK_SECRET` as described below.
+
+Reset the Docker database and remove any locally generated webhook secret with:
+
+```bash
+docker compose down -v
+```
+
 ## Environment
 
 Copy `.env.example` to `.env` and replace placeholders locally. Do not commit `.env` files.
@@ -60,9 +122,11 @@ Copy `.env.example` to `.env` and replace placeholders locally. Do not commit `.
 | --- | --- |
 | `DATABASE_URL` | Local or hosted Postgres connection string used by Prisma. The default matches `docker-compose.yml`. |
 | `APP_URL` | Public base URL used for absolute callback, success, and cancel URLs. |
+| `AUTH_COOKIE_SECURE` | Optional override for refresh-cookie `Secure`; blank infers from `APP_URL`. |
 | `JWT_SECRET` | High-entropy signing secret for application sessions. Generate a local value with `openssl rand -base64 32`. |
 | `STRIPE_SECRET_KEY` | Stripe test secret key. Use an `sk_test_...` key, never a live key for local assessment runs. |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret from `stripe listen` or the Stripe dashboard webhook endpoint. |
+| `STRIPE_WEBHOOK_SECRET_FILE` | Optional Docker path for a Stripe CLI sidecar-generated webhook signing secret. |
 | `SEAT_HOLD_TTL_SECONDS` | Time a seat hold remains valid before it can be released. |
 | `ACCESS_TOKEN_TTL_SECONDS` | Short-lived access token lifetime. |
 | `REFRESH_SESSION_TTL_DAYS` | Refresh-session lifetime for rotating sessions. |
@@ -113,13 +177,28 @@ Use Stripe Checkout in test mode only for this assessment.
    ```
 
 3. Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET`.
-4. Use Stripe test cards, for example `4242 4242 4242 4242` with any future expiry date, CVC, and postal code.
+4. Restart `npm run dev` after editing `.env` so Next.js picks up the new Stripe values.
+5. Use Stripe test cards, for example `4242 4242 4242 4242` with any future expiry date, CVC, and postal code.
 
 The bundled `sk_test_replace_me` placeholder is intentionally rejected before checkout starts, so reviewers get a clear configuration response instead of a generic payment failure or a stuck local payment row.
 
 Checkout success redirects should be treated as a user experience signal only. Reservation fulfillment must be driven by verified webhook events so refreshes, retries, and abandoned redirects do not create duplicate reservations.
 
 The success page polls `/api/payments/:paymentId` until the payment reaches `succeeded`, `requires_review`, `failed`, or `expired`.
+
+## Manual Reviewer Checklist
+
+1. Start with `docker compose up --build` or the local Quick Start.
+2. Log in as `demo@example.com / Password123!`.
+3. Hold an available seat and verify any previous hold by that user is released.
+4. Register a second account in another browser/session and verify held or reserved seats are unavailable immediately after selection attempts.
+5. With placeholder Stripe keys, start checkout and confirm the app returns a clear configuration error.
+6. With Stripe test keys and webhook forwarding, pay with `4242 4242 4242 4242` and confirm the reservation reaches a terminal state without continued polling.
+7. For host-side validation, run `npm ci` if you used the Docker-only path, copy `.env.example` to `.env` if missing, replace `JWT_SECRET` in `.env` with `openssl rand -base64 32`, keep Postgres running, then run `npm run reviewer:preflight -- --allow-placeholder-stripe`, `npm test`, `npm run typecheck`, and `npm run build` before packaging.
+
+`reviewer:preflight` intentionally still expects `JWT_SECRET` to be replaced
+with a local random value, even when `--allow-placeholder-stripe` is used. The
+flag only allows placeholder Stripe keys for non-payment review.
 
 ## Tests
 
@@ -160,6 +239,8 @@ Those integration tests verify:
 | `npm run test:integration` | Run DB-backed assessment tests with `RUN_DB_TESTS=1`. |
 | `npm run test:watch` | Run Vitest in watch mode. |
 | `npm run reviewer:preflight` | Check reviewer setup, seeded data, and Stripe test-key readiness. |
+| `npm run docker:review` | Build and run app plus Postgres with Docker Compose. |
+| `npm run docker:review:stripe` | Build and run app, Postgres, and Stripe webhook forwarding sidecar. |
 | `npm run db:generate` | Generate Prisma client. |
 | `npm run db:migrate` | Run Prisma development migrations. |
 | `npm run db:deploy` | Apply committed migrations. |

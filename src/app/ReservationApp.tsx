@@ -55,12 +55,16 @@ const terminalPaymentStates = new Set<PaymentStatus["businessState"]>([
 
 function readStoredAuth(): AuthState | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(authStorageKey);
+  const raw = window.sessionStorage.getItem(authStorageKey) ?? window.localStorage.getItem(authStorageKey);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthState;
+    const parsed = JSON.parse(raw) as AuthState;
+    window.sessionStorage.setItem(authStorageKey, JSON.stringify(parsed));
+    window.localStorage.removeItem(authStorageKey);
+    return parsed;
   } catch {
     window.localStorage.removeItem(authStorageKey);
+    window.sessionStorage.removeItem(authStorageKey);
     return null;
   }
 }
@@ -224,9 +228,11 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
   const storeAuth = (next: AuthState | null) => {
     setAuth(next);
     if (next) {
-      window.localStorage.setItem(authStorageKey, JSON.stringify(next));
+      window.localStorage.removeItem(authStorageKey);
+      window.sessionStorage.setItem(authStorageKey, JSON.stringify(next));
     } else {
       window.localStorage.removeItem(authStorageKey);
+      window.sessionStorage.removeItem(authStorageKey);
     }
   };
 
@@ -492,6 +498,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
         text: error instanceof Error ? error.message : "Unable to hold seat.",
         tone: "error"
       });
+      await loadSeats(auth, { quiet: true });
     } finally {
       setPendingAction(null);
     }

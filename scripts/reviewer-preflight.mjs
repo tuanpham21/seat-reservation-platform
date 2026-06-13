@@ -68,6 +68,16 @@ function checkCommand(command, args) {
   };
 }
 
+function readSecretFile(path) {
+  if (!path) return "";
+
+  try {
+    return fs.readFileSync(path, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
 function printReport() {
   for (const check of checks) {
     const marker = check.ok ? "PASS" : "FAIL";
@@ -100,7 +110,10 @@ async function main() {
   addCheck("Docker compose postgres visible", docker.ok, docker.ok ? "postgres service found" : docker.output);
 
   const stripeSecret = process.env.STRIPE_SECRET_KEY ?? "";
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+  const envWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+  const fileWebhookSecret = readSecretFile(process.env.STRIPE_WEBHOOK_SECRET_FILE);
+  const webhookSecret =
+    envWebhookSecret && envWebhookSecret !== "whsec_replace_me" ? envWebhookSecret : fileWebhookSecret;
   const stripeConfigured =
     stripeSecret.startsWith("sk_test_") &&
     stripeSecret !== "sk_test_replace_me" &&

@@ -110,8 +110,7 @@ describeDb("assessment integration requirements", () => {
       await expect(
         createCheckoutSession({
           userId: user.id,
-          holdId: hold.hold.id,
-          requestOrigin: "http://localhost:3000"
+          holdId: hold.hold.id
         })
       ).rejects.toMatchObject({
         status: 503,

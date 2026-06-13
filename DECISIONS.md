@@ -2,6 +2,17 @@
 
 This document is a first-class reviewer artifact for the seat reservation assessment. It captures the intended architecture and tradeoffs for a public app where authenticated users reserve one of three seats after Stripe payment confirmation.
 
+## Decision Summary
+
+| Area | Decision | Deferred Until Needed |
+| --- | --- | --- |
+| Architecture | Keep a Next.js modular monolith with explicit auth, seats, and payments modules. | NestJS/microservices, Kafka, and service extraction. |
+| Consistency | Put seat exclusivity in Postgres constraints and Prisma transactions. | Distributed locks or Redis coordination. |
+| Payments | Use Stripe Checkout and fulfill only from verified webhooks. | Async webhook worker, dead-letter queue, refund automation. |
+| Auth | Use local credentials, Argon2, short access tokens, and rotating refresh cookies. | Managed identity provider, account recovery, device management. |
+| Availability UI | Use focused refresh/polling only while useful and visible. | Server-sent events or WebSocket realtime inventory. |
+| Delivery | Provide Docker Compose for app plus Postgres, with optional Stripe CLI sidecar. | Production nginx, CI/CD, hosted infrastructure. |
+
 ## 0. Run It
 
 After cloning, the local app starts with placeholder Stripe keys in three commands:
@@ -15,6 +26,18 @@ docker compose up -d postgres && npm run db:generate && npm run db:deploy && npm
 Open `http://localhost:3000` and log in with `demo@example.com` / `Password123!`.
 The full payment path requires Stripe test keys and a forwarded webhook; `README.md`
 contains those setup steps.
+
+Reviewer Docker path:
+
+```bash
+docker compose up --build
+```
+
+For full Stripe Checkout in Docker, provide `STRIPE_SECRET_KEY=sk_test_...` and
+enable the `stripe` Compose profile. The Stripe CLI sidecar writes the generated
+webhook signing secret into a Docker volume; the app reads that secret from a
+file when verifying webhook signatures. Real Stripe secrets are intentionally
+kept out of git and generated submission zips.
 
 ## 1. Next.js Modular Monolith
 
@@ -113,7 +136,7 @@ Tradeoffs:
 - Business API bearer checks verify that the token family still has an active unrevoked user session, so logout or token-family theft detection invalidates outstanding access tokens before their natural expiry.
 - Cookie-auth endpoints require a CSRF header token returned from login/register/refresh.
 - Business APIs require `Authorization: Bearer <accessToken>` and do not use the refresh cookie.
-- The browser stores the access token and CSRF token in local storage for assessment simplicity. A production app would revisit this UX/security tradeoff with stronger client hardening.
+- The browser stores the access token and CSRF token in `sessionStorage`, and clears the legacy local-storage key on startup. A production app would further reduce browser token exposure with stronger client hardening and a fuller auth architecture.
 
 What changes at scale:
 
@@ -175,6 +198,7 @@ Known acceptable shortcuts for this assessment:
 - In-memory rate limiting for login/register/refresh.
 - Lazy seat hold cleanup instead of a scheduled cleanup worker.
 - Basic polling or server-rendered refreshes instead of realtime availability.
+- Docker Compose reviewer setup instead of production-grade ingress, secret management, and CI/CD.
 - No production refund automation. Payments that succeed after hold expiry are marked `requires_review` for support/refund handling.
 - Simple operational scripts instead of a full CI/CD pipeline.
 - No dynamic currency or price books.

@@ -12,6 +12,8 @@
     "test:integration": "RUN_DB_TESTS=1 vitest run src/server/assessment.integration.test.ts",
     "test:watch": "vitest",
     "reviewer:preflight": "node scripts/reviewer-preflight.mjs",
+    "docker:review": "docker compose up --build",
+    "docker:review:stripe": "docker compose --profile stripe up --build",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

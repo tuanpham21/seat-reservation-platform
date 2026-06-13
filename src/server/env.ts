@@ -6,6 +6,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET_FILE: z.string().optional(),
+  AUTH_COOKIE_SECURE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["true", "false"]).optional()
+  ),
   SEAT_HOLD_TTL_SECONDS: z.coerce.number().int().positive().default(600),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_SESSION_TTL_DAYS: z.coerce.number().int().positive().default(90),

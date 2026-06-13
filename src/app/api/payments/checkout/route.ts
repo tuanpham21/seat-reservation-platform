@@ -18,8 +18,7 @@ export async function POST(request: Request) {
 
     const result = await createCheckoutSession({
       userId: user.id,
-      holdId: body.data.holdId,
-      requestOrigin: new URL(request.url).origin
+      holdId: body.data.holdId
     });
 
     return Response.json(result, { status: 201 });
