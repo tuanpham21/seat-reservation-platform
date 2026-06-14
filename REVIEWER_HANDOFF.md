@@ -4,8 +4,11 @@ The primary assessment artifacts are `README.md`, `DECISIONS.md`, and
 `.env.example`. This file is only a short checklist for reviewers who want the
 fastest path through setup, validation, and Stripe Checkout.
 
-The normal app can start without real Stripe keys. The full payment flow
-requires Stripe test-mode configuration and a forwarded webhook.
+The normal app can start without real Stripe keys. Without a Stripe account,
+reviewers can verify auth, seat availability, hold creation/replacement,
+held-seat unavailable behavior, and the checkout configuration-failure path. The
+full `select -> pay -> reserve` flow requires Stripe test-mode configuration
+and a forwarded webhook.
 
 ## Docker Fast Path
 
@@ -33,7 +36,8 @@ STRIPE_SECRET_KEY="sk_test_..." docker compose --profile stripe up --build
 
 The Stripe listener sidecar forwards webhooks to the app and writes the
 generated `whsec_...` signing secret into a shared Docker volume. Do not commit
-or package real Stripe secrets.
+or package real Stripe secrets. The Docker sidecar uses `STRIPE_SECRET_KEY` as
+the Stripe CLI API key, so no host Stripe CLI install is needed for this path.
 
 Before paying through Checkout, confirm the sidecar secret is available:
 
@@ -43,6 +47,11 @@ docker compose exec app sh -lc 'test -r /run/stripe/webhook-secret && grep -q "^
 
 After Stripe review, `docker compose down -v` removes the database volume and
 the generated local webhook secret volume.
+
+If local port 5432 is already occupied, run Docker with `POSTGRES_PORT=5433`.
+For host-side npm/Prisma commands against that database, also set
+`DATABASE_URL="postgresql://seats:seats@localhost:5433/seats?schema=public"` in
+`.env`. The app container still uses Docker's internal `postgres:5432` address.
 
 ## Run The App
 
@@ -60,7 +69,9 @@ Demo login:
 - Password: `Password123!`
 
 With placeholder Stripe keys, the app intentionally blocks Checkout with a
-configuration error instead of creating a stuck local payment.
+configuration error instead of creating a stuck local payment. Confirmed
+reservation/payment states require a real `sk_test_...` key plus webhook
+forwarding.
 
 ## Optional Local Checks
 
@@ -100,10 +111,11 @@ openssl rand -base64 32
    STRIPE_SECRET_KEY="sk_test_..."
    ```
 
-2. Start webhook forwarding:
+2. Start webhook forwarding. Either run `stripe login` first, or pass the API
+   key directly:
 
    ```bash
-   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   STRIPE_API_KEY=sk_test_... stripe listen --forward-to localhost:3000/api/stripe/webhook
    ```
 
 3. Copy the printed webhook secret into `.env`:

@@ -15,8 +15,15 @@ Implemented reviewer-facing behavior:
 - Node.js 20 or newer
 - npm
 - Docker Desktop or a compatible Docker engine
-- A Stripe account for test mode keys
-- Stripe CLI for local webhook testing
+- Optional for full payment confirmation: a Stripe account for test mode keys
+- Optional for local full payment confirmation: Stripe CLI for webhook forwarding
+
+No Stripe account is required for the basic reviewer smoke path. With the
+placeholder keys in `.env.example`, reviewers can boot the app, log in, hold
+seats, replace a user's active hold, see held seats become unavailable, and
+verify checkout fails with a clear configuration message. Completing the full
+`select -> pay -> reserve` flow requires Stripe test credentials and webhook
+forwarding.
 
 ## Quick Start
 
@@ -84,8 +91,11 @@ APP_PORT=3001 APP_URL=http://localhost:3001 docker compose up --build
 ```
 
 With the default placeholder Stripe keys, the app still boots and reviewers can
-exercise auth, seat availability, hold replacement, and reserved/held UI states.
-Checkout is intentionally blocked until a real Stripe test key is provided.
+exercise auth, seat availability, hold creation/replacement, held-seat
+unavailable behavior, and the checkout configuration-failure path. Confirmed
+reservation/payment states require real Stripe test credentials and webhook
+forwarding. Checkout is intentionally blocked until a real Stripe test key and
+usable webhook signing secret are provided.
 
 For full Stripe Checkout from Docker, keep secrets outside git and run:
 
@@ -96,7 +106,9 @@ STRIPE_SECRET_KEY=sk_test_... docker compose --profile stripe up --build
 The `stripe-listener` sidecar forwards Stripe webhooks to the app container and
 writes the generated `whsec_...` signing secret into a shared Docker volume. The
 app reads that file when verifying webhook signatures, so reviewers do not need
-to manually paste `STRIPE_WEBHOOK_SECRET` for the Docker path.
+to manually paste `STRIPE_WEBHOOK_SECRET` for the Docker path. The sidecar maps
+`STRIPE_SECRET_KEY` into the Stripe CLI API key; no host Stripe CLI install is
+needed for this Docker path.
 
 Before paying through Checkout, confirm the sidecar has written the generated
 webhook secret:
@@ -113,6 +125,22 @@ Reset the Docker database and remove any locally generated webhook secret with:
 ```bash
 docker compose down -v
 ```
+
+If host port 5432 is already used by another Postgres instance, change the
+published database port:
+
+```bash
+POSTGRES_PORT=5433 docker compose up -d postgres
+```
+
+For host-side Prisma/npm commands against that port, also update `.env`:
+
+```bash
+DATABASE_URL="postgresql://seats:seats@localhost:5433/seats?schema=public"
+```
+
+The app container always talks to Postgres on the internal Docker address
+`postgres:5432`.
 
 ## Environment
 
@@ -170,10 +198,11 @@ The migration includes raw Postgres partial unique indexes for the core invarian
 Use Stripe Checkout in test mode only for this assessment.
 
 1. Put an `sk_test_...` key in `STRIPE_SECRET_KEY`.
-2. Forward local webhook events:
+2. Forward local webhook events. Either authenticate the Stripe CLI first with
+   `stripe login`, or pass the API key directly:
 
    ```bash
-   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   STRIPE_API_KEY=sk_test_... stripe listen --forward-to localhost:3000/api/stripe/webhook
    ```
 
 3. Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET`.
@@ -191,8 +220,8 @@ The success page polls `/api/payments/:paymentId` until the payment reaches `suc
 1. Start with `docker compose up --build` or the local Quick Start.
 2. Log in as `demo@example.com / Password123!`.
 3. Hold an available seat and verify any previous hold by that user is released.
-4. Register a second account in another browser/session and verify held or reserved seats are unavailable immediately after selection attempts.
-5. With placeholder Stripe keys, start checkout and confirm the app returns a clear configuration error.
+4. Register a second account in another browser/session and verify seats held by another user are unavailable immediately after selection attempts.
+5. With placeholder Stripe keys, start checkout and confirm the app returns a clear configuration error without creating a stuck local payment.
 6. With Stripe test keys and webhook forwarding, pay with `4242 4242 4242 4242` and confirm the reservation reaches a terminal state without continued polling.
 7. For host-side validation, run `npm ci` if you used the Docker-only path, copy `.env.example` to `.env` if missing, replace `JWT_SECRET` in `.env` with `openssl rand -base64 32`, keep Postgres running, then run `npm run reviewer:preflight -- --allow-placeholder-stripe`, `npm test`, `npm run typecheck`, and `npm run build` before packaging.
 
@@ -217,6 +246,9 @@ RUN_DB_TESTS=1 npm test
 # or
 npm run test:integration
 ```
+
+These integration tests clean the configured database. Use a disposable test
+database or reseed reviewer data with `npm run db:seed` afterward.
 
 Those integration tests verify:
 

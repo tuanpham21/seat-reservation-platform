@@ -2,16 +2,16 @@
 
 This document is a first-class reviewer artifact for the seat reservation assessment. It captures the intended architecture and tradeoffs for a public app where authenticated users reserve one of three seats after Stripe payment confirmation.
 
-## Decision Summary
+## Key Decisions
 
-| Area | Decision | Deferred Until Needed |
-| --- | --- | --- |
-| Architecture | Keep a Next.js modular monolith with explicit auth, seats, and payments modules. | NestJS/microservices, Kafka, and service extraction. |
-| Consistency | Put seat exclusivity in Postgres constraints and Prisma transactions. | Distributed locks or Redis coordination. |
-| Payments | Use Stripe Checkout and fulfill only from verified webhooks. | Async webhook worker, dead-letter queue, refund automation. |
-| Auth | Use local credentials, Argon2, short access tokens, and rotating refresh cookies. | Managed identity provider, account recovery, device management. |
-| Availability UI | Use focused refresh/polling only while useful and visible. | Server-sent events or WebSocket realtime inventory. |
-| Delivery | Provide Docker Compose for app plus Postgres, with optional Stripe CLI sidecar. | Production nginx, CI/CD, hosted infrastructure. |
+| Decision | Alternatives Considered | Why | With More Time |
+| --- | --- | --- | --- |
+| Next.js modular monolith with auth, seats, and payments modules | NestJS services, microservices, event-driven services | Small three-seat domain; easiest to run and review; keeps auth and concurrency fully implemented without distributed failure modes. | Extract auth or webhook processing only after measured operational pressure; add queue, replay, and dead-letter handling. |
+| Postgres and Prisma as source of truth | SQLite, MySQL, MongoDB, Redis locks as authority | Seat allocation needs transactions and partial unique indexes; Prisma gives typed queries and migrations in TypeScript. | Add query-plan-driven covering indexes, archival or partitioning for webhook events, and read replicas after measurement. |
+| DB-enforced seat exclusivity | UI checks, in-memory locks, Redis SETNX, broad pessimistic locks | Partial unique indexes enforce one active hold per seat, one active hold per user, and one confirmed reservation per seat; serializable retries handle races. | Escalate hot seats to row locks, advisory locks, or Redis locks when conflict rate justifies it. |
+| Stripe Checkout with verified webhook fulfillment | Mock-only PSP, redirect-success fulfillment, raw card collection | Hosted Checkout lowers PCI scope; webhook is canonical and retryable; redirect is UX only. | Persist webhook receipt first, process asynchronously, add replay/dead-letter tooling and refund automation. |
+| Local credentials with rotating refresh cookie | Managed IdP, refresh token in localStorage, long-lived JWT sessions | Makes security choices visible; refresh token is opaque, hashed, revocable, rotated, and stored in an HttpOnly/SameSite cookie. | Add device/session management, account recovery, Redis-backed rate limits/session cache, and managed IdP support for SSO/social login. |
+| Natural/business idempotency keys | Generic client idempotency table | This flow has stable keys: hold id, payment id, Stripe Checkout Session, PaymentIntent, Stripe event id, and reservation uniqueness. | Add a generic idempotency table only when supporting multiple arbitrary payment/reservation commands. |
 
 ## 0. Run It
 
@@ -84,7 +84,7 @@ Data ownership:
 
 What changes at scale:
 
-- Add explicit indexes for hold expiry scans, user reservations, Stripe identifiers, and active seat availability.
+- Add further covering/query-plan-driven indexes for hold expiry scans, user reservations, Stripe identifiers, and active seat availability.
 - Add archival or partitioning if payment/webhook event tables grow large.
 - Introduce read replicas only after the write path is stable and measured.
 
@@ -130,13 +130,15 @@ Why:
 Tradeoffs:
 
 - The refresh token is opaque and stored only in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/auth`.
+- The refresh cookie is `Secure` for HTTPS and production deployments, with an explicit local HTTP override for reviewer Docker runs.
 - Only the refresh token hash and CSRF token hash are stored in Postgres.
 - Access tokens are bearer JWTs with `sub`, `email`, and `sessionFamilyId`, expiring after roughly 15 minutes.
 - Refresh rotation is atomic. Presenting a revoked or rotated refresh token revokes the entire token family.
 - Business API bearer checks verify that the token family still has an active unrevoked user session, so logout or token-family theft detection invalidates outstanding access tokens before their natural expiry.
 - Cookie-auth endpoints require a CSRF header token returned from login/register/refresh.
 - Business APIs require `Authorization: Bearer <accessToken>` and do not use the refresh cookie.
-- The browser stores the access token and CSRF token in `sessionStorage`, and clears the legacy local-storage key on startup. A production app would further reduce browser token exposure with stronger client hardening and a fuller auth architecture.
+- The browser stores only the short-lived access token and CSRF token in `sessionStorage`, and clears/migrates the legacy local-storage key on startup. A production app would further reduce browser token exposure with stronger client hardening and a fuller auth architecture.
+- Argon2 password verification is intentionally CPU-expensive. The assessment uses in-process rate limiting; multi-instance production should move auth rate limits to Redis or an edge limiter.
 
 What changes at scale:
 
@@ -167,6 +169,15 @@ Failure behavior:
 - If a hold expires before payment confirmation, the webhook should not create a reservation.
 - If payment succeeds after expiry, the app should record the payment state and surface a support/refund path rather than silently double-book.
 
+Reviewer answer: two users racing for the same seat enter a serializable
+transaction after expired holds are cleaned up. Postgres partial unique indexes
+enforce one active hold per seat, one active hold per user, and one confirmed
+reservation per seat. The loser receives a conflict/unavailable response; the UI
+is never the authority. A paid webhook only converts an active, unexpired hold.
+Failed/expired payments currently rely on hold TTL and lazy cleanup rather than
+immediate server-side release; explicit payment-failure release is intentionally
+deferred.
+
 ## 6. Idempotency
 
 Decision: every payment-facing mutation should be retry-safe.
@@ -180,15 +191,23 @@ Required safeguards:
 - Stripe webhook fulfillment validates the stored Checkout Session ID when present, metadata identifiers, expected amount/currency, `client_reference_id`, and test-mode event status before mutating business state.
 - Serializable transactions are retried a small number of times for retryable Postgres serialization/deadlock failures.
 
+Natural/business idempotency in this implementation:
+
+- The app does not add a generic client-supplied `idempotency_key` column.
+- Checkout creation is keyed by the active seat hold. The database allows only one active checkout per hold, and the Stripe API call uses `seat-hold:{holdId}` as the provider idempotency key.
+- Webhook processing is keyed by Stripe event ID, while Checkout Session and PaymentIntent IDs are unique.
+- Reservation fulfillment is guarded by unique `seatHoldId` plus the confirmed-seat partial unique index.
+- This deliberately avoids duplicating narrower business invariants with a generic idempotency table. A generic table becomes useful when the API supports multiple arbitrary payment/reservation commands with no stable business key.
+
 Why:
 
 - Stripe webhooks can be retried.
 - Users can double-click, refresh, or retry network requests.
 - Deployment restarts can happen between payment creation and webhook completion.
 
-## 7. Assessment Shortcuts
+## 7. What's Intentionally Missing
 
-Known acceptable shortcuts for this assessment:
+Known acceptable shortcuts and intentionally deferred production work for this assessment:
 
 - Small fixed public inventory rather than a generalized venue/seat-map model.
 - Fixed pricing at USD 50.00 through a small pricing module. Dynamic amount/currency is future work.
@@ -220,3 +239,12 @@ If the product grew beyond the assessment:
 - Add admin tooling for refunds, manual releases, and customer support.
 - Move from fixed seats to event/venue inventory with seat maps and price books.
 - Add load tests around concurrent hold and reservation creation.
+
+## 9. Failure Paths To Test
+
+- Placeholder Stripe keys block checkout before creating a stuck local payment.
+- Missing webhook forwarding blocks checkout with a configuration error once a real-shaped `sk_test_...` key is configured.
+- `RUN_DB_TESTS=1 npm test` verifies concurrent hold races, refresh-token reuse, duplicate Stripe webhook handling, hold replacement, and paid-after-expiry review behavior.
+- Success redirects do not fulfill reservations; only verified Stripe webhooks do.
+- Webhook validation mismatches, expired/inactive holds after payment, and already-reserved seats are recorded as `requires_review` rather than silently confirming a reservation.
+- A process crash after Stripe creates a Checkout Session but before `checkoutUrl` is persisted can leave an initializing local payment; retry surfaces `checkout_initializing` rather than creating another active checkout. Production would add reconciliation/replay tooling.

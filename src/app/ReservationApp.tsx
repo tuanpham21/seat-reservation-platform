@@ -1,7 +1,7 @@
 "use client";
 
 import { Armchair, CreditCard, LogOut, RefreshCw, TicketCheck, UserRound } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type User = {
   id: string;
@@ -171,6 +171,9 @@ function clearLocalActiveHoldAfterTerminalPayment(seats: Seat[], state: PaymentS
 
 export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string }) {
   const [auth, setAuth] = useState<AuthState | null>(null);
+  const authRef = useRef<AuthState | null>(null);
+  const seatLoadRequestId = useRef(0);
+  const [authHydrated, setAuthHydrated] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("demo@example.com");
   const [password, setPassword] = useState("Password123!");
@@ -187,10 +190,6 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
   const isRefreshBusy = pendingAction === "refresh";
   const isCheckoutBusy = pendingAction === "checkout";
   const isLogoutBusy = pendingAction === "logout";
-
-  useEffect(() => {
-    setAuth(readStoredAuth());
-  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -225,7 +224,8 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
             ? "Hold an available seat before checkout."
             : null;
   const canCheckout = checkoutDisabledReason === null;
-  const storeAuth = (next: AuthState | null) => {
+  const storeAuth = useCallback((next: AuthState | null) => {
+    authRef.current = next;
     setAuth(next);
     if (next) {
       window.localStorage.removeItem(authStorageKey);
@@ -234,10 +234,15 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       window.localStorage.removeItem(authStorageKey);
       window.sessionStorage.removeItem(authStorageKey);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    storeAuth(readStoredAuth());
+    setAuthHydrated(true);
+  }, [storeAuth]);
 
   const refreshAuth = useCallback(
-    async (current = auth) => {
+    async (current = authRef.current) => {
       if (!current) return null;
 
       const response = await fetch("/api/auth/refresh", {
@@ -258,11 +263,11 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       storeAuth(data);
       return data;
     },
-    [auth]
+    [storeAuth]
   );
 
   const authorizedFetch = useCallback(
-    async (input: string, init: RequestInit = {}, overrideAuth: AuthState | null = auth) => {
+    async (input: string, init: RequestInit = {}, overrideAuth: AuthState | null = authRef.current) => {
       const first = await fetch(input, {
         ...init,
         headers: buildAuthHeaders(init.headers ?? {}, overrideAuth)
@@ -282,10 +287,14 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
         headers: buildAuthHeaders(init.headers ?? {}, refreshed)
       });
     },
-    [auth, refreshAuth]
+    [refreshAuth]
   );
 
-  const loadSeats = useCallback(async (overrideAuth: AuthState | null = auth, options: { quiet?: boolean } = {}) => {
+  const loadSeats = useCallback(async (overrideAuth: AuthState | null = authRef.current, options: { quiet?: boolean } = {}) => {
+    const requestId = seatLoadRequestId.current + 1;
+    seatLoadRequestId.current = requestId;
+    const isLatestRequest = () => requestId === seatLoadRequestId.current;
+
     if (!options.quiet) {
       setSeatLoadState("loading");
       setSeatLoadError(null);
@@ -295,6 +304,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       const response = await authorizedFetch("/api/seats", {}, overrideAuth);
       if (!response.ok) {
         const errorMessage = await readErrorMessage(response, "Unable to load seats.");
+        if (!isLatestRequest()) return false;
         setSeatLoadState("error");
         setSeatLoadError(errorMessage);
         if (!options.quiet) {
@@ -304,11 +314,13 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       }
 
       const data = (await response.json()) as { seats: Seat[] };
+      if (!isLatestRequest()) return false;
       setSeats(data.seats);
       setSeatLoadState("ready");
       setSeatLoadError(null);
       return true;
     } catch {
+      if (!isLatestRequest()) return false;
       const errorMessage = "Unable to load seats.";
       setSeatLoadState("error");
       setSeatLoadError(errorMessage);
@@ -317,11 +329,12 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
       }
       return false;
     }
-  }, [auth, authorizedFetch]);
+  }, [authorizedFetch]);
 
   useEffect(() => {
+    if (!authHydrated) return;
     void loadSeats();
-  }, [loadSeats]);
+  }, [auth?.user.id, authHydrated, loadSeats]);
 
   useEffect(() => {
     if (document.visibilityState !== "visible") return;
@@ -331,9 +344,9 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
     );
 
     if (hasExpiredVisibleHold) {
-      void loadSeats(auth, { quiet: true });
+      void loadSeats(authRef.current, { quiet: true });
     }
-  }, [auth, loadSeats, now, seats]);
+  }, [auth?.user.id, loadSeats, now, seats]);
 
   useEffect(() => {
     if (!paymentId || !auth) return;
@@ -383,7 +396,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
           shouldContinuePolling = false;
           setPaymentId("");
           setSeats((currentSeats) => clearLocalActiveHoldAfterTerminalPayment(currentSeats, data.businessState));
-          const seatsRefreshed = await loadSeats(auth, { quiet: true });
+          const seatsRefreshed = await loadSeats(authRef.current, { quiet: true });
           if (!seatsRefreshed && !cancelled) {
             setMessage({
               scope: "payment",
@@ -498,7 +511,7 @@ export function ReservationApp({ initialPaymentId }: { initialPaymentId?: string
         text: error instanceof Error ? error.message : "Unable to hold seat.",
         tone: "error"
       });
-      await loadSeats(auth, { quiet: true });
+      await loadSeats(authRef.current, { quiet: true });
     } finally {
       setPendingAction(null);
     }
