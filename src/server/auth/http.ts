@@ -18,25 +18,52 @@ export function authErrorResponse(error: unknown) {
   return apiError("unauthorized", error.message, 401);
 }
 
-export function clientIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+export function requestThrottleKey(request: NextRequest) {
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
+  if (cloudflareIp) {
+    return cloudflareIp;
+  }
+
+  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwardedFor) {
+    return forwardedFor;
+  }
+
+  return request.headers.get("user-agent")?.trim() || "local";
 }
 
 export function rateLimitAuth(request: NextRequest, action: "login" | "register" | "refresh") {
-  assertRateLimit(`${action}:${clientIp(request)}`, {
+  assertRateLimit(`${action}:source:${requestThrottleKey(request)}`, {
+    limit: action === "refresh" ? 30 : 10,
+    windowMs: 60_000
+  });
+}
+
+export function rateLimitAuthIdentity(key: string, action: "login" | "register" | "refresh") {
+  assertRateLimit(`${action}:identity:${key}`, {
     limit: action === "refresh" ? 30 : 10,
     windowMs: 60_000
   });
 }
 
 export function authSuccess(result: AuthResult, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Cache-Control", "no-store");
   const response = ok(
     {
       accessToken: result.accessToken,
       csrfToken: result.csrfToken,
       user: result.user
     },
-    init
+    {
+      ...init,
+      headers
+    }
   );
   setRefreshCookie(response, result.refreshToken);
   return response;
@@ -57,6 +84,7 @@ export function requireRefreshAndCsrf(request: NextRequest) {
 }
 
 export function clearAuthOnResponse(response: NextResponse) {
+  response.headers.set("Cache-Control", "no-store");
   clearRefreshCookie(response);
   return response;
 }

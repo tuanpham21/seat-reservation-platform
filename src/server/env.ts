@@ -19,14 +19,20 @@ const envSchema = z.object({
 
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const buildSafeDefaults = {
-  DATABASE_URL: "postgresql://seats:seats@localhost:5432/seats?schema=public",
-  JWT_SECRET: "development-jwt-secret-that-is-long-enough",
-  STRIPE_SECRET_KEY: "sk_test_replace_me",
-  STRIPE_WEBHOOK_SECRET: "whsec_replace_me"
+  DATABASE_URL: "postgresql://seats:seats@localhost:5432/seats?schema=public"
 };
+const testOnlyDefaults =
+  nodeEnv === "test" || process.env.VITEST
+    ? {
+        JWT_SECRET: "test-jwt-secret-long-enough-for-unit-tests",
+        STRIPE_SECRET_KEY: "sk_test_for_unit_tests",
+        STRIPE_WEBHOOK_SECRET: "whsec_for_unit_tests"
+      }
+    : {};
 
 export const env = envSchema.parse({
   ...buildSafeDefaults,
+  ...testOnlyDefaults,
   ...process.env,
   NODE_ENV: nodeEnv
 });

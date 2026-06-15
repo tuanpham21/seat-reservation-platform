@@ -9,7 +9,7 @@ This document is a first-class reviewer artifact for the seat reservation assess
 | Next.js modular monolith with auth, seats, and payments modules | NestJS services, microservices, event-driven services | Small three-seat domain; easiest to run and review; keeps auth and concurrency fully implemented without distributed failure modes. | Extract auth or webhook processing only after measured operational pressure; add queue, replay, and dead-letter handling. |
 | Postgres and Prisma as source of truth | SQLite, MySQL, MongoDB, Redis locks as authority | Seat allocation needs transactions and partial unique indexes; Prisma gives typed queries and migrations in TypeScript. | Add query-plan-driven covering indexes, archival or partitioning for webhook events, and read replicas after measurement. |
 | DB-enforced seat exclusivity | UI checks, in-memory locks, Redis SETNX, broad pessimistic locks | Partial unique indexes enforce one active hold per seat, one active hold per user, and one confirmed reservation per seat; serializable retries handle races. | Escalate hot seats to row locks, advisory locks, or Redis locks when conflict rate justifies it. |
-| Stripe Checkout with verified webhook fulfillment | Mock-only PSP, redirect-success fulfillment, raw card collection | Hosted Checkout lowers PCI scope; webhook is canonical and retryable; redirect is UX only. | Persist webhook receipt first, process asynchronously, add replay/dead-letter tooling and refund automation. |
+| Stripe Checkout with ack-fast webhook receipt and in-process fulfillment worker | Mock-only PSP, redirect-success fulfillment, raw card collection | Hosted Checkout lowers PCI scope; the webhook is canonical, deduplicated, and acknowledged quickly before the worker finalizes business state. | Add replay/dead-letter tooling, stronger alerting, and refund automation. |
 | Local credentials with rotating refresh cookie | Managed IdP, refresh token in localStorage, long-lived JWT sessions | Makes security choices visible; refresh token is opaque, hashed, revocable, rotated, and stored in an HttpOnly/SameSite cookie. | Add device/session management, account recovery, Redis-backed rate limits/session cache, and managed IdP support for SSO/social login. |
 | Natural/business idempotency keys | Generic client idempotency table | This flow has stable keys: hold id, payment id, Stripe Checkout Session, PaymentIntent, Stripe event id, and reservation uniqueness. | Add a generic idempotency table only when supporting multiple arbitrary payment/reservation commands. |
 
@@ -30,6 +30,7 @@ contains those setup steps.
 Reviewer Docker path:
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
@@ -55,6 +56,9 @@ Boundary expectation:
 - UI code should live under app routes/components.
 - Domain logic should be extracted into seat, payment, and auth modules rather than embedded directly in route handlers.
 - Route handlers should do transport concerns: parse input, check auth, call domain functions, return typed responses.
+- Realtime availability has an explicit boundary in `/api/seats/stream`; it is
+  still in-process today and marked for Redis-backed fan-out when the app runs
+  on multiple instances.
 
 What changes at scale:
 
@@ -106,14 +110,16 @@ Fulfillment rule:
 
 Webhook model:
 
+- Persist Stripe events in `payment_events` before business mutation and acknowledge receipt quickly.
 - Store processed Stripe event IDs so repeated deliveries are harmless.
 - Store Checkout Session and PaymentIntent IDs with unique constraints.
+- Drain unprocessed events in a single-process background worker.
 - Run payment event processing inside one database transaction.
 - If the related seat hold is inactive or expired, mark payment `requires_review` and do not create a reservation.
+- If Stripe reports checkout expiry or payment failure, release the active hold in the same server-side flow instead of waiting for a later seat read.
 
 What changes at scale:
 
-- Persist webhook receipt first, then process asynchronously.
 - Add dead-letter handling and replay tooling.
 - Emit internal domain events after reservation confirmation.
 
@@ -138,7 +144,7 @@ Tradeoffs:
 - Cookie-auth endpoints require a CSRF header token returned from login/register/refresh.
 - Business APIs require `Authorization: Bearer <accessToken>` and do not use the refresh cookie.
 - The browser stores only the short-lived access token and CSRF token in `sessionStorage`, and clears/migrates the legacy local-storage key on startup. A production app would further reduce browser token exposure with stronger client hardening and a fuller auth architecture.
-- Argon2 password verification is intentionally CPU-expensive. The assessment uses in-process rate limiting; multi-instance production should move auth rate limits to Redis or an edge limiter.
+- Argon2 password verification is intentionally CPU-expensive. Auth, hold mutation, checkout creation, and payment-status polling all use in-process rate limiting today; multi-instance production should move those limits to Redis or an edge limiter.
 
 What changes at scale:
 
@@ -174,9 +180,8 @@ transaction after expired holds are cleaned up. Postgres partial unique indexes
 enforce one active hold per seat, one active hold per user, and one confirmed
 reservation per seat. The loser receives a conflict/unavailable response; the UI
 is never the authority. A paid webhook only converts an active, unexpired hold.
-Failed/expired payments currently rely on hold TTL and lazy cleanup rather than
-immediate server-side release; explicit payment-failure release is intentionally
-deferred.
+Failed or expired provider events release the active hold server-side, while a
+background sweeper handles quiet periods where no seat reads occur.
 
 ## 6. Idempotency
 
@@ -215,9 +220,9 @@ Known acceptable shortcuts and intentionally deferred production work for this a
 - Local credentials auth rather than a full identity provider.
 - No email verification, password reset, account recovery, or email receipt flow.
 - In-memory rate limiting for login/register/refresh.
-- Lazy seat hold cleanup instead of a scheduled cleanup worker.
-- Basic polling or server-rendered refreshes instead of realtime availability.
-- Docker Compose reviewer setup instead of production-grade ingress, secret management, and CI/CD.
+- Single-process background workers instead of an external queue, scheduler, or distributed lock coordinator.
+- The UI still relies on polling as the primary reviewer path even though `/api/seats/stream` now provides an in-process SSE boundary for realtime fan-out.
+- Docker Compose keeps the reviewer fast path simple, while `infra/nginx/nginx.conf` and the optional `edge` Compose profile show the ingress/rate-limit/SSE proxy skeleton without turning this submission into a full platform rollout.
 - No production refund automation. Payments that succeed after hold expiry are marked `requires_review` for support/refund handling.
 - Simple operational scripts instead of a full CI/CD pipeline.
 - No dynamic currency or price books.

@@ -13,14 +13,18 @@ and a forwarded webhook.
 ## Docker Fast Path
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
 Open `http://localhost:3000`.
 
-This starts Postgres and the Next.js app, applies committed migrations, and
-seeds the reviewer data. With placeholder Stripe keys, Checkout is intentionally
-blocked with a configuration message.
+This starts Postgres and the Next.js app, applies committed migrations, seeds
+the reviewer data, and exposes `/api/health/live` plus `/api/health/ready`.
+With placeholder Stripe keys, Checkout is intentionally blocked with a
+configuration message. `/api/seats/stream` is also available as the in-process
+SSE boundary for seat availability fan-out. The placeholder `.env.example`
+values are acceptable for this Docker-only smoke path.
 
 If port 3000 is busy:
 
@@ -38,6 +42,17 @@ The Stripe listener sidecar forwards webhooks to the app and writes the
 generated `whsec_...` signing secret into a shared Docker volume. Do not commit
 or package real Stripe secrets. The Docker sidecar uses `STRIPE_SECRET_KEY` as
 the Stripe CLI API key, so no host Stripe CLI install is needed for this path.
+
+If you want to inspect the proxy/rate-limit skeleton as well, run:
+
+```bash
+docker compose --profile edge up --build
+```
+
+That adds `nginx` plus a placeholder `redis` container. The default fast path
+stays app + Postgres so reviewers do not need extra infrastructure unless they
+want to inspect the edge story. Use `http://localhost:8080` for the proxy path;
+`http://localhost:3000` still talks directly to the app container.
 
 Before paying through Checkout, confirm the sidecar secret is available:
 
@@ -136,8 +151,8 @@ openssl rand -base64 32
    `4242 4242 4242 4242`.
 
 The success page polls payment status only until the backend reaches a terminal
-state. Reservation creation is driven by the verified Stripe webhook, not the
-redirect URL.
+state. Reservation creation is driven by ack-fast webhook receipt plus the
+verified background worker path, not the redirect URL.
 
 ## Database Safety
 

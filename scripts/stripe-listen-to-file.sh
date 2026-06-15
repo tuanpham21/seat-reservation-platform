@@ -44,7 +44,7 @@ while IFS= read -r line; do
   secret="$(printf '%s\n' "$line" | sed -n 's/.*\(whsec_[A-Za-z0-9_]*\).*/\1/p' | head -n 1)"
   if [ -n "$secret" ]; then
     printf '%s' "$secret" > "$secret_file"
-    chmod 600 "$secret_file"
+    chmod 644 "$secret_file"
   fi
 done < "$log_pipe"
 

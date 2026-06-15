@@ -1,5 +1,6 @@
 import { PrismaClient, ReservationStatus, SeatHoldStatus } from "@prisma/client";
 import { SeatDomainError, isPrismaUniqueConstraintError } from "./errors";
+import { publishSeatAvailabilityChanged } from "./events";
 import { getHoldExpiresAt, getSeatAvailabilityStatus, resolveHoldTtlMs } from "./policy";
 import { prisma } from "../prisma";
 import { runSerializableTransaction } from "../transactions";
@@ -123,7 +124,7 @@ export async function holdSeat(input: {
   const ttlMs = input.ttlMs ?? resolveHoldTtlMs();
 
   try {
-    return await runSerializableTransaction(async (tx): Promise<SeatHoldResult> => {
+    const outcome = await runSerializableTransaction(async (tx) => {
       await expireActiveSeatHolds(tx, now);
 
       const seat = await tx.seat.findUnique({
@@ -174,15 +175,18 @@ export async function holdSeat(input: {
 
       if (existingUserHold?.seatId === seat.id) {
         return {
-          hold: {
-            id: existingUserHold.id,
-            seatId: seat.id,
-            userId: input.userId,
-            status: SeatHoldStatus.active,
-            expiresAt: existingUserHold.expiresAt
-          },
-          seat,
-          replacedHoldId: null
+          changed: false,
+          result: {
+            hold: {
+              id: existingUserHold.id,
+              seatId: seat.id,
+              userId: input.userId,
+              status: SeatHoldStatus.active,
+              expiresAt: existingUserHold.expiresAt
+            },
+            seat,
+            replacedHoldId: null
+          }
         };
       }
 
@@ -218,17 +222,28 @@ export async function holdSeat(input: {
       });
 
       return {
-        hold: {
-          id: hold.id,
-          seatId: hold.seatId,
-          userId: hold.userId,
-          status: SeatHoldStatus.active,
-          expiresAt: hold.expiresAt
-        },
-        seat,
-        replacedHoldId
+        changed: true,
+        result: {
+          hold: {
+            id: hold.id,
+            seatId: hold.seatId,
+            userId: hold.userId,
+            status: SeatHoldStatus.active,
+            expiresAt: hold.expiresAt
+          },
+          seat,
+          replacedHoldId
+        }
       };
     });
+
+    if (outcome.changed) {
+      publishSeatAvailabilityChanged({
+        reason: "hold_created"
+      });
+    }
+
+    return outcome.result;
   } catch (error) {
     if (isPrismaUniqueConstraintError(error)) {
       throw new SeatDomainError("SEAT_UNAVAILABLE", "Seat or user already has an active hold.");
@@ -245,10 +260,10 @@ export async function releaseActiveHold(input: {
 }) {
   const now = input.now ?? new Date();
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     await expireActiveSeatHolds(tx, now);
 
-    const result = await tx.seatHold.updateMany({
+    const released = await tx.seatHold.updateMany({
       where: {
         id: input.holdId,
         userId: input.userId,
@@ -261,7 +276,15 @@ export async function releaseActiveHold(input: {
     });
 
     return {
-      released: result.count > 0
+      released: released.count > 0
     };
   });
+
+  if (result.released) {
+    publishSeatAvailabilityChanged({
+      reason: "hold_released"
+    });
+  }
+
+  return result;
 }

@@ -6,8 +6,9 @@ Implemented reviewer-facing behavior:
 
 - authenticated users can hold one of three public seats;
 - payment starts through Stripe Checkout in test mode;
-- a reservation is finalized only after Stripe webhook confirmation;
+- webhook receipt is ack-fast and reservation fulfillment happens through an in-process worker;
 - Postgres owns seat/hold/reservation state through Prisma;
+- health/readiness endpoints, a hold sweeper, and graceful shutdown hooks are wired into the Node runtime;
 - tests, typechecking, build, and submission packaging are runnable from npm scripts.
 
 ## Prerequisites
@@ -50,6 +51,7 @@ src/app/                 Next.js routes and the reviewer-facing reservation UI
 src/server/auth/         credentials auth, rotating refresh sessions, cookies
 src/server/seats/        seat availability and active-hold domain logic
 src/server/payments/     Stripe Checkout, webhook verification, fulfillment
+infra/nginx/nginx.conf   optional edge skeleton for rate limiting and SSE proxying
 prisma/                  schema, migrations, and reviewer seed data
 scripts/                 reviewer preflight, Docker entrypoint, packaging
 Dockerfile               production-like app container for review
@@ -74,15 +76,21 @@ npm run package:submission
 
 ## Docker Reviewer Run
 
-For the lowest-friction review path, run the app and Postgres together:
+For the primary reviewer path, copy the sample environment file once and run the app plus Postgres together:
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
 Open `http://localhost:3000`. The app container applies committed Prisma
 migrations and reseeds the three seats plus `demo@example.com / Password123!`
-before starting Next.js.
+before starting Next.js. The container healthcheck uses `/api/health/ready`,
+`/api/health/live` is available for plain process liveness, and
+`/api/seats/stream` exposes an in-process SSE stream that can later move behind
+Redis pub/sub. For this Docker smoke path, the placeholder values already
+present in `.env.example` are acceptable; they intentionally block real Stripe
+Checkout but still allow the full auth/seat-hold/manual-review flow to run.
 
 If port 3000 is already in use, set both the published port and callback URL:
 
@@ -96,6 +104,18 @@ unavailable behavior, and the checkout configuration-failure path. Confirmed
 reservation/payment states require real Stripe test credentials and webhook
 forwarding. Checkout is intentionally blocked until a real Stripe test key and
 usable webhook signing secret are provided.
+
+An optional edge skeleton is available when you want to inspect proxy config for
+rate limiting and SSE:
+
+```bash
+docker compose --profile edge up --build
+```
+
+That profile adds `nginx` plus a placeholder `redis` container without changing
+the default reviewer flow or the current in-process worker model. Use
+`http://localhost:8080` to test through `nginx`; the app container still
+remains directly reachable on `http://localhost:3000`.
 
 For full Stripe Checkout from Docker, keep secrets outside git and run:
 
@@ -144,7 +164,9 @@ The app container always talks to Postgres on the internal Docker address
 
 ## Environment
 
-Copy `.env.example` to `.env` and replace placeholders locally. Do not commit `.env` files.
+Copy `.env.example` to `.env`. The placeholder values are enough for the basic
+Docker reviewer smoke path. Replace them locally before any host-side strict
+validation or real Stripe Checkout run. Do not commit `.env` files.
 
 | Variable | Purpose |
 | --- | --- |
@@ -214,16 +236,20 @@ The bundled `sk_test_replace_me` placeholder is intentionally rejected before ch
 Checkout success redirects should be treated as a user experience signal only. Reservation fulfillment must be driven by verified webhook events so refreshes, retries, and abandoned redirects do not create duplicate reservations.
 
 The success page polls `/api/payments/:paymentId` until the payment reaches `succeeded`, `requires_review`, `failed`, or `expired`.
+The app also exposes `/api/seats/stream` as a realtime availability boundary;
+the current UI keeps polling as the simpler reviewer path, while the SSE route
+shows the in-process fan-out seam and the TODO(prod) move to Redis-backed
+publish/subscribe.
 
 ## Manual Reviewer Checklist
 
-1. Start with `docker compose up --build` or the local Quick Start.
+1. Start with `cp .env.example .env && docker compose up --build` or the local Quick Start.
 2. Log in as `demo@example.com / Password123!`.
 3. Hold an available seat and verify any previous hold by that user is released.
 4. Register a second account in another browser/session and verify seats held by another user are unavailable immediately after selection attempts.
 5. With placeholder Stripe keys, start checkout and confirm the app returns a clear configuration error without creating a stuck local payment.
 6. With Stripe test keys and webhook forwarding, pay with `4242 4242 4242 4242` and confirm the reservation reaches a terminal state without continued polling.
-7. For host-side validation, run `npm ci` if you used the Docker-only path, copy `.env.example` to `.env` if missing, replace `JWT_SECRET` in `.env` with `openssl rand -base64 32`, keep Postgres running, then run `npm run reviewer:preflight -- --allow-placeholder-stripe`, `npm test`, `npm run typecheck`, and `npm run build` before packaging.
+7. For host-side validation, run `npm ci` if you used the Docker-only path, copy `.env.example` to `.env` if missing, replace `JWT_SECRET` in `.env` with `openssl rand -base64 32`, keep Postgres running, then run `npm run reviewer:preflight -- --allow-placeholder-stripe`, `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` before packaging.
 
 `reviewer:preflight` intentionally still expects `JWT_SECRET` to be replaced
 with a local random value, even when `--allow-placeholder-stripe` is used. The
@@ -257,6 +283,7 @@ Those integration tests verify:
 - concurrent refresh reuse allows one rotation and then revokes the token family;
 - duplicate Stripe webhook delivery creates only one processing effect;
 - successful Stripe payment after hold expiry becomes `requires_review` without creating a reservation.
+- failed or expired provider events release the active hold deterministically instead of waiting for a later read path.
 
 ## NPM Scripts
 

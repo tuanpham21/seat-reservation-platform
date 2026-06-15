@@ -5,7 +5,11 @@ import { prisma } from "@/server/prisma";
 import { hashPassword } from "./auth/passwords";
 import { refreshUserSession, registerUser } from "./auth/service";
 import { hashToken } from "./auth/tokens";
-import { processStripeWebhookEvent } from "./payments/webhook";
+import {
+  drainPendingStripeWebhookEvents,
+  enqueueStripeWebhookEvent,
+  processStripeWebhookEvent
+} from "./payments/webhook";
 import { createCheckoutSession } from "./payments/checkout";
 import { resetStripeClientForTests } from "./payments/stripe";
 import { holdSeat } from "./seats/service";
@@ -98,6 +102,64 @@ describeDb("assessment integration requirements", () => {
     });
   });
 
+  it("acknowledges Stripe events before draining the payment_events inbox", async () => {
+    const user = await createUser("stripe-queue@example.com");
+    const hold = await holdSeat({ seatId: "seat-1", userId: user.id });
+    const payment = await prisma.payment.create({
+      data: {
+        userId: user.id,
+        seatHoldId: hold.hold.id,
+        amountCents: 5000,
+        currency: "usd",
+        status: PaymentStatus.checkout_created,
+        metadata: { pricing: "fixed_usd_50" },
+        stripeCheckoutSessionId: "cs_test_queue"
+      }
+    });
+    const event = checkoutCompletedEvent(
+      payment.id,
+      hold.hold.id,
+      user.id,
+      "cs_test_queue",
+      "evt_queue_test"
+    );
+
+    await expect(enqueueStripeWebhookEvent(event)).resolves.toMatchObject({
+      status: "accepted",
+      eventId: "evt_queue_test"
+    });
+    await expect(
+      prisma.paymentEvent.findUniqueOrThrow({
+        where: {
+          stripeEventId: "evt_queue_test"
+        }
+      })
+    ).resolves.toMatchObject({
+      processedAt: null
+    });
+
+    await expect(drainPendingStripeWebhookEvents()).resolves.toMatchObject({
+      processedCount: 1,
+      lastEventId: "evt_queue_test"
+    });
+    await expect(prisma.reservation.count({ where: { seatHoldId: hold.hold.id } })).resolves.toBe(1);
+    await expect(
+      prisma.paymentEvent.findUniqueOrThrow({
+        where: {
+          stripeEventId: "evt_queue_test"
+        }
+      })
+    ).resolves.toMatchObject({
+      processedAt: expect.any(Date)
+    });
+    await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
+      status: PaymentStatus.succeeded
+    });
+    await expect(enqueueStripeWebhookEvent(event)).resolves.toMatchObject({
+      status: "duplicate"
+    });
+  });
+
   it("does not create a stuck payment when Stripe secret is still a placeholder", async () => {
     const originalStripeSecretKey = process.env.STRIPE_SECRET_KEY;
     process.env.STRIPE_SECRET_KEY = "sk_test_replace_me";
@@ -183,6 +245,76 @@ describeDb("assessment integration requirements", () => {
       status: PaymentStatus.requires_review
     });
   });
+
+  it("releases the active hold when Stripe reports the checkout session expired", async () => {
+    const user = await createUser("expired-session@example.com");
+    const hold = await holdSeat({ seatId: "seat-1", userId: user.id });
+    const payment = await prisma.payment.create({
+      data: {
+        userId: user.id,
+        seatHoldId: hold.hold.id,
+        amountCents: 5000,
+        currency: "usd",
+        status: PaymentStatus.processing,
+        metadata: { pricing: "fixed_usd_50" },
+        stripeCheckoutSessionId: "cs_test_expired"
+      }
+    });
+
+    await expect(
+      processStripeWebhookEvent(
+        checkoutExpiredEvent(payment.id, hold.hold.id, user.id, {
+          checkoutSessionId: "cs_test_expired",
+          eventId: "evt_expired_test"
+        })
+      )
+    ).resolves.toMatchObject({
+      status: "processed",
+      action: "marked_expired_and_released_hold"
+    });
+
+    await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
+      status: PaymentStatus.expired
+    });
+    await expect(prisma.seatHold.findUniqueOrThrow({ where: { id: hold.hold.id } })).resolves.toMatchObject({
+      status: SeatHoldStatus.released
+    });
+  });
+
+  it("releases the active hold when Stripe reports the payment intent failed", async () => {
+    const user = await createUser("failed-payment@example.com");
+    const hold = await holdSeat({ seatId: "seat-1", userId: user.id });
+    const payment = await prisma.payment.create({
+      data: {
+        userId: user.id,
+        seatHoldId: hold.hold.id,
+        amountCents: 5000,
+        currency: "usd",
+        status: PaymentStatus.processing,
+        metadata: { pricing: "fixed_usd_50" },
+        stripePaymentIntentId: "pi_test_failed"
+      }
+    });
+
+    await expect(
+      processStripeWebhookEvent(
+        paymentFailedEvent(payment.id, hold.hold.id, user.id, {
+          paymentIntentId: "pi_test_failed",
+          eventId: "evt_payment_failed_test"
+        })
+      )
+    ).resolves.toMatchObject({
+      status: "processed",
+      action: "marked_failed_and_released_hold"
+    });
+
+    await expect(prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).resolves.toMatchObject({
+      status: PaymentStatus.failed
+    });
+    await expect(prisma.seatHold.findUniqueOrThrow({ where: { id: hold.hold.id } })).resolves.toMatchObject({
+      status: SeatHoldStatus.released
+    });
+  });
 });
 
 async function cleanDatabase() {
@@ -218,10 +350,11 @@ function checkoutCompletedEvent(
   paymentId: string,
   holdId: string,
   userId: string,
-  checkoutSessionId = "cs_test_duplicate"
+  checkoutSessionId = "cs_test_duplicate",
+  eventId = "evt_duplicate_test"
 ) {
   return {
-    id: "evt_duplicate_test",
+    id: eventId,
     object: "event",
     type: "checkout.session.completed",
     api_version: "2024-06-20",
@@ -239,6 +372,74 @@ function checkoutCompletedEvent(
         client_reference_id: paymentId,
         amount_total: 5000,
         currency: "usd",
+        metadata: {
+          payment_id: paymentId,
+          hold_id: holdId,
+          user_id: userId
+        }
+      }
+    }
+  } as unknown as Stripe.Event;
+}
+
+function checkoutExpiredEvent(
+  paymentId: string,
+  holdId: string,
+  userId: string,
+  options: {
+    checkoutSessionId?: string;
+    eventId?: string;
+  } = {}
+) {
+  return {
+    id: options.eventId ?? "evt_checkout_expired_test",
+    object: "event",
+    type: "checkout.session.expired",
+    api_version: "2024-06-20",
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    data: {
+      object: {
+        id: options.checkoutSessionId ?? "cs_test_expired",
+        object: "checkout.session",
+        status: "expired",
+        payment_status: "unpaid",
+        client_reference_id: paymentId,
+        metadata: {
+          payment_id: paymentId,
+          hold_id: holdId,
+          user_id: userId
+        }
+      }
+    }
+  } as unknown as Stripe.Event;
+}
+
+function paymentFailedEvent(
+  paymentId: string,
+  holdId: string,
+  userId: string,
+  options: {
+    paymentIntentId?: string;
+    eventId?: string;
+  } = {}
+) {
+  return {
+    id: options.eventId ?? "evt_payment_failed_test",
+    object: "event",
+    type: "payment_intent.payment_failed",
+    api_version: "2024-06-20",
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    data: {
+      object: {
+        id: options.paymentIntentId ?? "pi_test_failed",
+        object: "payment_intent",
+        status: "requires_payment_method",
         metadata: {
           payment_id: paymentId,
           hold_id: holdId,

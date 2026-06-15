@@ -15,6 +15,16 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    profiles:
+      - edge
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   app:
     build:
       context: .
@@ -28,15 +38,34 @@ services:
       NODE_ENV: production
       DATABASE_URL: "postgresql://seats:seats@postgres:5432/seats?schema=public"
       APP_URL: "${APP_URL:-http://localhost:${APP_PORT:-3000}}"
-      JWT_SECRET: "${JWT_SECRET:-docker-reviewer-jwt-secret-change-me-1234567890}"
-      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-sk_test_replace_me}"
-      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-whsec_replace_me}"
+      AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-false}"
+      JWT_SECRET: "${JWT_SECRET:?Copy .env.example to .env before running docker compose}"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:?Copy .env.example to .env before running docker compose}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:?Copy .env.example to .env before running docker compose}"
       STRIPE_WEBHOOK_SECRET_FILE: "/run/stripe/webhook-secret"
       SEAT_HOLD_TTL_SECONDS: "${SEAT_HOLD_TTL_SECONDS:-600}"
       ACCESS_TOKEN_TTL_SECONDS: "${ACCESS_TOKEN_TTL_SECONDS:-900}"
       REFRESH_SESSION_TTL_DAYS: "${REFRESH_SESSION_TTL_DAYS:-90}"
     volumes:
       - stripe-webhook-secret:/run/stripe:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    profiles:
+      - edge
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   stripe-listener:
     image: stripe/stripe-cli:v1.30.0
@@ -45,7 +74,7 @@ services:
     depends_on:
       - app
     environment:
-      STRIPE_API_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_API_KEY: "${STRIPE_SECRET_KEY:?Copy .env.example to .env before running docker compose}"
       STRIPE_FORWARD_TO: "http://app:3000/api/stripe/webhook"
       STRIPE_WEBHOOK_SECRET_FILE: "/run/stripe/webhook-secret"
     volumes:
