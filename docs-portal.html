@@ -1,0 +1,3080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seat Reservation Platform - Documentation & Interactive Architecture Portal</title>
+  
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* Warm Espresso & Terracotta Theme */
+      --bg-dark: #0f0b08; /* Rich roasted coffee bean */
+      --bg-panel: rgba(28, 20, 16, 0.8); /* Translucent warm espresso panel */
+      --bg-sidebar: rgba(20, 14, 11, 0.95); /* Deeper espresso sidebar */
+      --border-glow: rgba(249, 115, 22, 0.25); /* Orange/Amber border glow */
+      --border-dim: rgba(255, 255, 255, 0.06);
+      
+      --color-primary: #f97316; /* Warm Orange / Terracotta */
+      --color-primary-glow: rgba(249, 115, 22, 0.35);
+      --color-secondary: #f59e0b; /* Amber */
+      --color-secondary-glow: rgba(245, 158, 11, 0.25);
+      --color-success: #10b981; /* Warm Sage */
+      --color-success-bg: rgba(16, 185, 129, 0.1);
+      --color-danger: #f43f5e;
+      --color-danger-bg: rgba(244, 63, 94, 0.1);
+      --color-warning: #f59e0b;
+      --color-warning-bg: rgba(245, 158, 11, 0.1);
+      --color-info: #eab308; /* Warm Gold */
+      --color-info-bg: rgba(234, 179, 8, 0.1);
+      
+      --text-main: #f5f5f4; /* Cozy off-white */
+      --text-muted: #a8a29e; /* Warm stone gray */
+      --text-highlight: #fafaf9; /* True warm white */
+      
+      --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+      
+      --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* General Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 40%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      height: 100vh;
+      display: flex;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-primary);
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 280px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-dim);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      flex-shrink: 0;
+      z-index: 10;
+      backdrop-filter: blur(20px);
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-dim);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sidebar-header svg {
+      color: var(--color-primary);
+      filter: drop-shadow(0 0 8px var(--color-primary-glow));
+    }
+
+    .sidebar-header h1 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text-highlight);
+    }
+
+    .sidebar-nav {
+      padding: 20px 12px;
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      color: var(--text-muted);
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover {
+      color: var(--text-highlight);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .nav-item.active {
+      color: var(--text-highlight);
+      background: rgba(249, 115, 22, 0.08);
+      border-color: rgba(249, 115, 22, 0.25);
+      box-shadow: 0 4px 20px -5px rgba(249, 115, 22, 0.25);
+    }
+
+    .nav-item.simulator-nav {
+      border-color: rgba(245, 158, 11, 0.25);
+      background: rgba(245, 158, 11, 0.03);
+      color: #fde68a;
+    }
+    
+    .nav-item.simulator-nav:hover {
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .nav-item.simulator-nav.active {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 20px;
+      border-top: 1px solid var(--border-dim);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sidebar-footer strong {
+      color: var(--text-highlight);
+    }
+
+    /* Main Content Area */
+    main {
+      flex-grow: 1;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Header Bar */
+    header {
+      padding: 24px 40px;
+      background: rgba(15, 11, 8, 0.6);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .header-title h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+    }
+
+    .header-title p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Status Badge */
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--color-success-bg);
+      color: var(--color-success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .badge-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-success);
+      box-shadow: 0 0 8px var(--color-success);
+    }
+
+    /* Content Viewport */
+    .content-viewport {
+      padding: 40px;
+      max-width: 1500px;
+      width: 100%;
+      margin: 0 auto;
+      flex-grow: 1;
+    }
+
+    /* Tab Switch Animation */
+    .view-panel {
+      display: none;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .view-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards */
+    .glass-card {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-dim);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: var(--shadow-premium);
+      transition: var(--transition-smooth);
+    }
+
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .card-header-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-dim);
+      padding-bottom: 16px;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text-highlight);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title svg {
+      color: var(--color-primary);
+    }
+
+    .card-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Grid systems */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 1024px) {
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* List rules */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .feature-list li {
+      position: relative;
+      padding-left: 24px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .feature-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--color-success);
+      font-weight: bold;
+    }
+
+    /* Alert blocks */
+    .alert-block {
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-top: 16px;
+      border-left: 4px solid;
+    }
+
+    .alert-block.important {
+      background: var(--color-success-bg);
+      border-color: var(--color-success);
+      color: var(--text-main);
+    }
+
+    .alert-block.warning {
+      background: var(--color-warning-bg);
+      border-color: var(--color-warning);
+      color: var(--text-main);
+    }
+
+    .alert-block.danger {
+      background: var(--color-danger-bg);
+      border-color: var(--color-danger);
+      color: var(--text-main);
+    }
+
+    /* Code layout */
+    pre {
+      background: #0b0806;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      overflow-x: auto;
+      border: 1px solid var(--border-dim);
+      margin-top: 10px;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      color: var(--color-secondary);
+      font-size: 0.85em;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    pre code {
+      color: var(--text-main);
+      background: transparent;
+      padding: 0;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th {
+      text-align: left;
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: var(--text-highlight);
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--border-dim);
+      font-size: 0.9rem;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    tr:hover td {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    td strong {
+      color: var(--text-highlight);
+    }
+
+    /* -------------------------------------------------------------
+       CUSTOM INTERACTIVE ARCHITECTURE DIAGRAM
+       ------------------------------------------------------------- */
+    .arch-diag-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 30px;
+      min-height: 520px;
+    }
+
+    @media (max-width: 1024px) {
+      .arch-diag-wrapper {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .arch-visualizer {
+      background: #120e0b;
+      border-radius: 12px;
+      border: 1px solid var(--border-dim);
+      position: relative;
+      overflow: hidden;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+
+    .arch-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .arch-node {
+      background: rgba(28, 22, 18, 0.85);
+      border: 1px solid var(--border-dim);
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .arch-node svg {
+      width: 20px;
+      height: 20px;
+      color: var(--color-primary);
+      transition: var(--transition-smooth);
+    }
+
+    .arch-node:hover {
+      transform: translateY(-4px);
+      border-color: var(--color-primary);
+      box-shadow: 0 8px 25px -5px var(--color-primary-glow);
+    }
+
+    .arch-node.active {
+      background: rgba(249, 115, 22, 0.12);
+      border-color: var(--color-primary);
+      box-shadow: 0 0 25px var(--color-primary-glow);
+    }
+
+    .arch-node.active svg {
+      transform: scale(1.1);
+      color: var(--text-highlight);
+    }
+
+    /* Node Groups */
+    .node-group-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    /* Info Sidebar */
+    .arch-sidebar {
+      background: rgba(24, 18, 14, 0.5);
+      border-left: 1px solid var(--border-dim);
+      padding: 24px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      border: 1px solid var(--border-dim);
+    }
+
+    .arch-sidebar-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+      border-bottom: 1px solid var(--border-dim);
+      padding-bottom: 10px;
+    }
+
+    .arch-sidebar-meta {
+      font-size: 0.75rem;
+      color: var(--color-primary);
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .arch-sidebar-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* -------------------------------------------------------------
+       CUSTOM INTERACTIVE ER DIAGRAM
+       ------------------------------------------------------------- */
+    .er-diag-wrapper {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      min-height: 480px;
+    }
+
+    @media (max-width: 1280px) {
+      .er-diag-wrapper {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 768px) {
+      .er-diag-wrapper {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .er-entity-card {
+      background: rgba(28, 22, 18, 0.6);
+      border: 1px solid var(--border-dim);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+
+    .er-entity-card:hover {
+      border-color: var(--color-primary);
+      transform: translateY(-3px);
+    }
+
+    .er-entity-card.active {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 25px -5px var(--color-primary-glow);
+    }
+
+    .er-entity-card.connected {
+      border-color: var(--color-secondary);
+      box-shadow: 0 0 20px -5px var(--color-secondary-glow);
+    }
+
+    .er-entity-header {
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border-dim);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .er-entity-header span {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .er-entity-card.active .er-entity-header {
+      background: rgba(249, 115, 22, 0.1);
+      color: var(--text-highlight);
+    }
+
+    .er-entity-card.connected .er-entity-header {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--text-highlight);
+    }
+
+    .er-entity-body {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .er-field {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .er-field-name {
+      color: var(--text-main);
+    }
+
+    .er-field-type {
+      color: #78716c;
+    }
+
+    .er-field.pk .er-field-name {
+      color: var(--color-warning);
+      font-weight: 600;
+    }
+
+    .er-field.fk .er-field-name {
+      color: var(--color-primary);
+    }
+
+    .er-info-drawer {
+      margin-top: 30px;
+      background: rgba(24, 18, 14, 0.6);
+      border: 1px solid var(--border-dim);
+      border-radius: 12px;
+      padding: 24px;
+      display: none;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    /* -------------------------------------------------------------
+       CUSTOM INTERACTIVE SEQUENCE DIAGRAM PLAYER
+       ------------------------------------------------------------- */
+    .seq-player {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 30px;
+      background: #140e0a;
+      border: 1px solid var(--border-dim);
+      border-radius: 16px;
+      padding: 24px;
+      min-height: 600px;
+    }
+
+    @media (max-width: 1100px) {
+      .seq-player {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .seq-canvas-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+    }
+
+    .seq-player-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-dim);
+    }
+
+    .seq-step-indicator {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-highlight);
+    }
+
+    .seq-nav-btn {
+      background: var(--color-primary);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: var(--transition-smooth);
+    }
+
+    .seq-nav-btn:hover:not(:disabled) {
+      filter: brightness(1.1);
+      box-shadow: 0 0 10px var(--color-primary-glow);
+    }
+
+    .seq-nav-btn:disabled {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .seq-diag-viewport {
+      flex-grow: 1;
+      position: relative;
+      background: #0a0705;
+      border-radius: 12px;
+      border: 1px solid var(--border-dim);
+      overflow-x: auto;
+      overflow-y: hidden;
+      min-height: 480px;
+    }
+
+    .seq-svg-canvas {
+      width: 100%;
+      height: 100%;
+      min-width: 600px;
+      display: block;
+    }
+
+    /* SVG Animation effects */
+    .seq-anim-path {
+      animation: dash 1s linear infinite;
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+
+    .seq-step-desc-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-dim);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .seq-step-title {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-highlight);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .seq-step-num-badge {
+      background: var(--color-primary);
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .seq-step-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      background: var(--color-info-bg);
+      color: var(--color-secondary);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .seq-step-detail-txt {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* -------------------------------------------------------------
+       SIMULATOR
+       ------------------------------------------------------------- */
+    .sim-container {
+      display: grid;
+      grid-template-columns: 320px 1fr 300px;
+      gap: 20px;
+      height: calc(100vh - 180px);
+    }
+
+    @media (max-width: 1280px) {
+      .sim-container {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+    }
+
+    .sim-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-dim);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      max-height: 100%;
+    }
+
+    .sim-panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-dim);
+      background: rgba(0, 0, 0, 0.25);
+      font-weight: 600;
+      font-family: var(--font-display);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sim-panel-content {
+      padding: 20px;
+      overflow-y: auto;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .user-select-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition-smooth);
+    }
+
+    .user-select-btn:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .user-select-btn.active {
+      border-color: var(--color-primary);
+      background: rgba(249, 115, 22, 0.08);
+      color: var(--text-highlight);
+      box-shadow: 0 0 15px -5px var(--color-primary-glow);
+    }
+
+    .user-avatar-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+
+    .user-avatar-circle.user-b {
+      background: var(--color-info);
+      color: var(--bg-dark);
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: var(--color-primary);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      filter: brightness(1.1);
+      box-shadow: 0 4px 15px var(--color-primary-glow);
+    }
+
+    .action-btn:disabled {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border-color: var(--border-dim);
+      cursor: not-allowed;
+    }
+
+    .action-btn.secondary {
+      background: transparent;
+      border: 1px solid var(--border-dim);
+      color: var(--text-main);
+    }
+
+    .action-btn.secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .action-btn.danger {
+      background: var(--color-danger);
+    }
+
+    .action-btn.danger:hover:not(:disabled) {
+      box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4);
+    }
+
+    .action-btn.success {
+      background: var(--color-success);
+    }
+
+    .action-btn.success:hover:not(:disabled) {
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .stage-canvas {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border-dim);
+    }
+
+    .stage-screen {
+      width: 80%;
+      height: 4px;
+      background: var(--color-primary);
+      box-shadow: 0 0 15px var(--color-primary);
+      border-radius: 2px;
+      margin-bottom: 10px;
+    }
+
+    .stage-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 30px;
+    }
+
+    .sim-seats-row {
+      display: flex;
+      gap: 20px;
+    }
+
+    .sim-seat-box {
+      width: 80px;
+      height: 90px;
+      border-radius: 10px;
+      border: 2px solid var(--border-dim);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: var(--transition-smooth);
+    }
+
+    .sim-seat-box svg {
+      width: 24px;
+      height: 24px;
+      color: var(--text-muted);
+      transition: var(--transition-smooth);
+    }
+
+    .sim-seat-box span {
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .sim-seat-box .countdown-label {
+      position: absolute;
+      bottom: 4px;
+      font-size: 0.65rem;
+      color: var(--color-warning);
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .sim-seat-box.available:hover {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 15px -3px var(--color-primary-glow);
+    }
+
+    .sim-seat-box.held_by_you {
+      border-color: var(--color-primary);
+      background: rgba(249, 115, 22, 0.12);
+      animation: pulseGlow 2s infinite;
+    }
+
+    .sim-seat-box.held_by_you svg {
+      color: var(--color-primary);
+    }
+
+    .sim-seat-box.held {
+      border-color: var(--color-secondary);
+      background: rgba(245, 158, 11, 0.15);
+      cursor: not-allowed;
+    }
+
+    .sim-seat-box.held svg {
+      color: var(--color-secondary);
+    }
+
+    .sim-seat-box.reserved {
+      border-color: var(--color-success);
+      background: rgba(16, 185, 129, 0.15);
+      cursor: not-allowed;
+    }
+
+    .sim-seat-box.reserved svg {
+      color: var(--color-success);
+    }
+
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 10px rgba(249, 115, 22, 0.1); }
+      50% { box-shadow: 0 0 20px rgba(249, 115, 22, 0.3); }
+      100% { box-shadow: 0 0 10px rgba(249, 115, 22, 0.1); }
+    }
+
+    .sim-console {
+      background: #050302;
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .console-line {
+      display: flex;
+      gap: 8px;
+    }
+
+    .console-time {
+      color: #57483f;
+      flex-shrink: 0;
+    }
+
+    .console-msg {
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    .console-msg.success { color: var(--color-success); }
+    .console-msg.error { color: var(--color-danger); }
+    .console-msg.warning { color: var(--color-warning); }
+    .console-msg.info { color: var(--color-info); }
+
+    .db-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+
+    .db-badge.active { background: rgba(249, 115, 22, 0.2); color: var(--color-primary); }
+    .db-badge.expired { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
+    .db-badge.released { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }
+    .db-badge.converted { background: rgba(16, 185, 129, 0.2); color: var(--color-success); }
+    
+    .db-badge.created { background: rgba(245, 158, 11, 0.2); color: var(--color-secondary); }
+    .db-badge.succeeded { background: rgba(16, 185, 129, 0.2); color: var(--color-success); }
+    .db-badge.failed { background: rgba(244, 63, 94, 0.2); color: var(--color-danger); }
+    .db-badge.review { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
+
+    .db-table-wrapper {
+      max-height: 250px;
+      overflow-y: auto;
+      border: 1px solid var(--border-dim);
+      border-radius: 6px;
+    }
+
+    .db-table {
+      width: 100%;
+      font-size: 0.75rem;
+    }
+
+    .db-table th {
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.35);
+      font-size: 0.75rem;
+    }
+
+    .db-table td {
+      padding: 8px 12px;
+    }
+
+    .empty-db-state {
+      text-align: center;
+      padding: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.75rem;
+    }
+
+    .flex-header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .flex-header-container h3 {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-highlight);
+    }
+
+    .flash-highlight {
+      animation: flashBorder 1.5s ease-out;
+    }
+
+    @keyframes flashBorder {
+      0% { border-color: var(--color-primary); box-shadow: 0 0 15px var(--color-primary-glow); }
+      100% { border-color: var(--border-dim); box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Panel -->
+  <aside>
+    <div class="sidebar-header">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      <h1>SEATS PLATFORM</h1>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-target="view-architecture">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="3" x2="9" y2="21"></line>
+          <line x1="9" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="15" x2="21" y2="15"></line>
+        </svg>
+        Architecture & Components
+      </div>
+      
+      <div class="nav-item" data-target="view-datamodel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+        Data Model Invariants
+      </div>
+      
+      <div class="nav-item" data-target="view-decisions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        Key Decisions
+      </div>
+      
+      <div class="nav-item" data-target="view-sequences">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+        Sequence Flows Player
+      </div>
+      
+      <div class="nav-item simulator-nav" data-target="view-simulator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Interactive Simulator
+      </div>
+    </nav>
+    
+    <div class="sidebar-footer">
+      <div>Project: <strong>Seat Reservation App</strong></div>
+      <div>Tech Stack: <strong>Next.js + Prisma + Stripe</strong></div>
+    </div>
+  </aside>
+
+  <!-- Main Work View -->
+  <main>
+    <header>
+      <div class="header-title">
+        <h2 id="view-title-label">Architecture & Component Map</h2>
+        <p id="view-desc-label">Hover or click components in the architecture diagram to inspect files, routes, and logic roles.</p>
+      </div>
+      <div class="badge-status">API Ready (Simulated)</div>
+    </header>
+    
+    <div class="content-viewport">
+
+      <!-- =========================================================
+           VIEW: ARCHITECTURE & RUNTIME
+           ========================================================= -->
+      <div id="view-architecture" class="view-panel active">
+        <div class="glass-card">
+          <div class="card-header-group">
+            <div class="card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect></svg>
+              Modular Monolith Structure & Interactive Map
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">Click any component card below to view implementation details</div>
+          </div>
+          
+          <div class="arch-diag-wrapper">
+            <!-- Interactive Visualizer -->
+            <div class="arch-visualizer">
+              
+              <!-- Ingress/Client Row -->
+              <div class="arch-row">
+                <div class="arch-node" id="arch-client" onclick="selectArchNode('client')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                  Client (UI)
+                </div>
+                
+                <div class="arch-node" id="arch-edge" onclick="selectArchNode('edge')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2" ry="2"></rect><path d="M9 22V12h6v10"></path></svg>
+                  Nginx Edge Proxy
+                </div>
+
+                <div class="arch-node" id="arch-stripe" onclick="selectArchNode('stripe')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                  Stripe Checkout (API)
+                </div>
+              </div>
+
+              <!-- Next.js API Routes Row -->
+              <div class="arch-row">
+                <div style="width: 100%; border: 1px dashed rgba(255,255,255,0.06); border-radius:12px; padding:15px; background:rgba(0,0,0,0.15);">
+                  <div class="node-group-label">Next.js API Route Handlers</div>
+                  <div class="arch-row">
+                    <div class="arch-node" id="arch-route-auth" onclick="selectArchNode('route-auth')">
+                      /api/auth/*
+                    </div>
+                    <div class="arch-node" id="arch-route-seats" onclick="selectArchNode('route-seats')">
+                      /api/seats/*
+                    </div>
+                    <div class="arch-node" id="arch-route-payments" onclick="selectArchNode('route-payments')">
+                      /api/payments/*
+                    </div>
+                    <div class="arch-node" id="arch-route-stripe" onclick="selectArchNode('route-stripe')">
+                      /api/stripe/webhook
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Services & Background Processes -->
+              <div class="arch-row" style="gap:20px;">
+                <div style="flex:1; border: 1px solid var(--border-dim); border-radius:12px; padding:15px; background:rgba(255, 255, 255, 0.015);">
+                  <div class="node-group-label">In-Process Services & Workers</div>
+                  <div class="arch-row">
+                    <div class="arch-node" id="arch-srv-auth" onclick="selectArchNode('srv-auth')">
+                      Auth Service
+                    </div>
+                    <div class="arch-node" id="arch-srv-seats" onclick="selectArchNode('srv-seats')">
+                      Seat Service
+                    </div>
+                    <div class="arch-node" id="arch-srv-payments" onclick="selectArchNode('srv-payments')">
+                      Payments Service
+                    </div>
+                  </div>
+                  <div class="arch-row" style="margin-top:15px;">
+                    <div class="arch-node" id="arch-wkr-sweeper" onclick="selectArchNode('wkr-sweeper')" style="border-color: rgba(245, 158, 11, 0.2)">
+                      Seat Hold Sweeper
+                    </div>
+                    <div class="arch-node" id="arch-wkr-inbox" onclick="selectArchNode('wkr-inbox')" style="border-color: rgba(16, 185, 129, 0.2)">
+                      Webhook Inbox Worker
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- DB Layer Row -->
+              <div class="arch-row">
+                <div class="arch-node" id="arch-db" onclick="selectArchNode('db')" style="min-width: 250px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>
+                  Prisma Client + PostgreSQL Database
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Detail Sidebar -->
+            <div class="arch-sidebar" id="arch-sidebar-panel">
+              <div class="arch-sidebar-title" id="arch-detail-title">Select Component</div>
+              <div class="arch-sidebar-meta" id="arch-detail-meta">-</div>
+              <div class="arch-sidebar-desc" id="arch-detail-desc">Click any block inside the architecture diagram on the left to inspect its implementation parameters, directories, and code logic.</div>
+              <div id="arch-detail-code-block" style="display:none; margin-top: auto;">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px; font-family:var(--font-mono);">Methods & Endpoints:</div>
+                <pre style="margin:0; padding:10px; font-size:0.7rem;"><code id="arch-detail-methods"></code></pre>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="glass-card">
+            <div class="card-title" style="margin-bottom:16px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              Core Runtime Components
+            </div>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:12px;">
+              The system boots up an in-process coordinator containing multiple autonomous background components:
+            </p>
+            <ul class="feature-list">
+              <li><strong>Seat Hold Sweeper:</strong> Periodically sweeps active expired holds from the database (status transition: <code>active</code> → <code>expired</code>) and pushes updates to the SSE server layer.</li>
+              <li><strong>Webhook Inbox Worker:</strong> Handles queued events sequentially inside transaction blocks using database locking (<code>SKIP LOCKED</code>) to avoid double-processing and CPU locks.</li>
+              <li><strong>SSE Broadcast Node:</strong> Exposes the Server-Sent Events route (<code>/api/seats/stream</code>) fanning out global changes to clients in real-time.</li>
+            </ul>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-title" style="margin-bottom:16px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+              Graceful Shutdown & Health Checks
+            </div>
+            <div style="font-size:0.9rem; color:var(--text-muted);">
+              <p style="margin-bottom:12px;">
+                Robust process shutdown hooks trap <code>SIGTERM</code>/<code>SIGINT</code> to guarantee database and queues are not left corrupted:
+              </p>
+              <pre><code>// Order of operations:
+1. Signal shutdown status -> Readiness fails (503)
+2. Stop Seat Hold Sweeper loop
+3. Allow Inbox Worker to drain current event loop
+4. Close Prisma DB connections (disconnectPrisma)
+5. Exit Node process</code></pre>
+              <div class="alert-block important" style="margin-top:12px;">
+                Ready checks (<code>/api/health/ready</code>) evaluate active database connections and background worker error logs, enabling container orchestrators to route traffic safely.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================================
+           VIEW: DATA MODEL & INVARIANTS
+           ========================================================= -->
+      <div id="view-datamodel" class="view-panel">
+        <div class="glass-card">
+          <div class="card-header-group">
+            <div class="card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon></svg>
+              Interactive Database Schema & Invariants Visualizer
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">Click any table entity to display relations and Postgres constraint rules</div>
+          </div>
+
+          <!-- Entity grid -->
+          <div class="er-diag-wrapper">
+            
+            <!-- User Entity -->
+            <div class="er-entity-card" id="er-User" onclick="selectEntity('User')">
+              <div class="er-entity-header">
+                User
+                <span>@map("users")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">email</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">passwordHash</span><span class="er-field-type">String</span></div>
+              </div>
+            </div>
+
+            <!-- UserSession Entity -->
+            <div class="er-entity-card" id="er-UserSession" onclick="selectEntity('UserSession')">
+              <div class="er-entity-header">
+                UserSession
+                <span>@map("user_sessions")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">userId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">sessionFamilyId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">refreshTokenHash</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">csrfTokenHash</span><span class="er-field-type">String</span></div>
+              </div>
+            </div>
+
+            <!-- Seat Entity -->
+            <div class="er-entity-card" id="er-Seat" onclick="selectEntity('Seat')">
+              <div class="er-entity-header">
+                Seat
+                <span>@map("seats")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">label</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">sortOrder</span><span class="er-field-type">Int</span></div>
+                <div class="er-field"><span class="er-field-name">isEnabled</span><span class="er-field-type">Boolean</span></div>
+              </div>
+            </div>
+
+            <!-- SeatHold Entity -->
+            <div class="er-entity-card" id="er-SeatHold" onclick="selectEntity('SeatHold')">
+              <div class="er-entity-header">
+                SeatHold
+                <span>@map("seat_holds")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">seatId</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">userId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">status</span><span class="er-field-type">SeatHoldStatus</span></div>
+                <div class="er-field"><span class="er-field-name">expiresAt</span><span class="er-field-type">DateTime</span></div>
+              </div>
+            </div>
+
+            <!-- Reservation Entity -->
+            <div class="er-entity-card" id="er-Reservation" onclick="selectEntity('Reservation')">
+              <div class="er-entity-header">
+                Reservation
+                <span>@map("reservations")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">seatId</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">userId</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">seatHoldId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">status</span><span class="er-field-type">ReservationStatus</span></div>
+              </div>
+            </div>
+
+            <!-- Payment Entity -->
+            <div class="er-entity-card" id="er-Payment" onclick="selectEntity('Payment')">
+              <div class="er-entity-header">
+                Payment
+                <span>@map("payments")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">id</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">userId</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">seatHoldId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">stripeCheckoutSessionId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">status</span><span class="er-field-type">PaymentStatus</span></div>
+              </div>
+            </div>
+
+            <!-- PaymentEvent Entity -->
+            <div class="er-entity-card" id="er-PaymentEvent" onclick="selectEntity('PaymentEvent')">
+              <div class="er-entity-header">
+                PaymentEvent
+                <span>@map("payment_events")</span>
+              </div>
+              <div class="er-entity-body">
+                <div class="er-field pk"><span class="er-field-name">stripeEventId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">eventType</span><span class="er-field-type">String</span></div>
+                <div class="er-field fk"><span class="er-field-name">paymentId</span><span class="er-field-type">String</span></div>
+                <div class="er-field"><span class="er-field-name">processedAt</span><span class="er-field-type">DateTime</span></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Relation Drawer Panel -->
+          <div class="er-info-drawer" id="er-drawer-panel">
+            <h3 class="card-title" id="er-drawer-title" style="margin-bottom:8px;">Table Info</h3>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;" id="er-drawer-desc"></p>
+            
+            <div class="grid-2">
+              <div>
+                <h4 style="font-size:0.8rem; font-weight:600; color:var(--text-highlight); margin-bottom:6px;">Relations:</h4>
+                <ul class="feature-list" id="er-drawer-relations" style="font-size:0.8rem;">
+                  <!-- JS Rendered -->
+                </ul>
+              </div>
+              <div>
+                <h4 style="font-size:0.8rem; font-weight:600; color:var(--text-highlight); margin-bottom:6px;">Db Index Invariants & Constraints:</h4>
+                <div id="er-drawer-sql" style="font-family:var(--font-mono); font-size:0.75rem; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid var(--border-dim); color:var(--color-primary);"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title" style="margin-bottom:16px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            Critical DB Constraints (Postgres Partial Unique Indexes)
+          </div>
+          <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:16px;">
+            To guarantee complete data exclusivity without relying on expensive in-memory lock pools, the application applies raw partial unique indexes directly to Postgres columns. If two processes attempt conflicting actions, the loser's transaction is aborted at the database engine boundary:
+          </p>
+          
+          <table style="margin-bottom:20px;">
+            <thead>
+              <tr>
+                <th>Invariant Goal</th>
+                <th>Underlying SQL Condition</th>
+                <th>Effect Behavior</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>One active hold per seat</strong></td>
+                <td><code>CREATE UNIQUE INDEX ON seat_holds(seat_id) WHERE status = 'active'</code></td>
+                <td>Rejects any attempt to create or switch status to 'active' for a seat that already has an unexpired hold.</td>
+              </tr>
+              <tr>
+                <td><strong>One active hold per user</strong></td>
+                <td><code>CREATE UNIQUE INDEX ON seat_holds(user_id) WHERE status = 'active'</code></td>
+                <td>Restricts authenticated users to exactly one active hold. Forcing them to release the previous hold to secure a new seat.</td>
+              </tr>
+              <tr>
+                <td><strong>One confirmed reservation per seat</strong></td>
+                <td><code>CREATE UNIQUE INDEX ON reservations(seat_id) WHERE status = 'confirmed'</code></td>
+                <td>Permanently blocks double-booking. Prevents multiple reservations from succeeding for a single physical seat.</td>
+              </tr>
+              <tr>
+                <td><strong>At most one active payment checkout per hold</strong></td>
+                <td><code>CREATE UNIQUE INDEX ON payments(seat_hold_id) WHERE status IN ('checkout_created', 'processing')</code></td>
+                <td>Blocks users from creating multiple Stripe checkout URLs concurrently for the same seat hold.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- =========================================================
+           VIEW: DECISIONS
+           ========================================================= -->
+      <div id="view-decisions" class="view-panel">
+        <div class="glass-card">
+          <div class="card-header-group">
+            <div class="card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Key Decisions & Alternatives Trade-offs
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Decision Topic</th>
+                <th>Selected Architecture</th>
+                <th>Alternatives Considered</th>
+                <th>"Why" / Trade-off Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Framework Boundary</strong></td>
+                <td><strong>Modular Monolith</strong> in Next.js</td>
+                <td>Separated Microservices / Serverless Handlers</td>
+                <td>Small domain. Avoids network latency hops and distributed locks. Keeps Prisma logic and type safety closely bound to frontend components.</td>
+              </tr>
+              <tr>
+                <td><strong>Exclusivity Authority</strong></td>
+                <td><strong>Database Constraints</strong> (Postgres)</td>
+                <td>Redis SETNX lock, In-Memory Semaphore block</td>
+                <td>Transactions combined with partial indices represent a secure, bulletproof source of truth. Does not suffer from lock leakage issues.</td>
+              </tr>
+              <tr>
+                <td><strong>Fulfillment Trigger</strong></td>
+                <td>Stripe <strong>Webhook Event</strong> + Inbox Worker</td>
+                <td>Success Redirect URL callback page</td>
+                <td>Users can close browsers or abort redirects. Driving confirmation through Stripe's webhook guarantees delivery and ensures correct payment records.</td>
+              </tr>
+              <tr>
+                <td><strong>Idempotency Strategy</strong></td>
+                <td><strong>Natural / Business Keys</strong> in models</td>
+                <td>Universal client-generated Idempotency Table</td>
+                <td>Models already possess unique properties (<code>stripeEventId</code>, <code>paymentId</code>, <code>seatHoldId</code>). A dedicated table would duplicate these invariants.</td>
+              </tr>
+              <tr>
+                <td><strong>Auth Token Rules</strong></td>
+                <td><strong>Rotating Refresh Cookies</strong> + JWT Session</td>
+                <td>Long-lived stateless JWT / LocalStorage Tokens</td>
+                <td>Opaque, rotated refresh tokens stored in HttpOnly cookies restrict token theft. Presenting a used token revokes the entire user session family.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- =========================================================
+           VIEW: SEQUENCES
+           ========================================================= -->
+      <div id="view-sequences" class="view-panel">
+        <div class="flow-selector">
+          <button class="flow-tab active" data-flow="auth">1. Authentication Cycle</button>
+          <button class="flow-tab" data-flow="checkout">2. Hold & Checkout</button>
+          <button class="flow-tab" data-flow="webhook">3. Webhook Inbox Worker</button>
+          <button class="flow-tab" data-flow="expiry">4. Expiry & Release</button>
+        </div>
+
+        <div class="glass-card">
+          
+          <div class="seq-player">
+            <!-- Diagram view column -->
+            <div class="seq-canvas-container">
+              
+              <!-- Control Bar -->
+              <div class="seq-player-controls">
+                <button class="seq-nav-btn" id="seq-btn-prev" onclick="stepSequence(-1)">◀ Prev Step</button>
+                <div class="seq-step-indicator" id="seq-step-indicator-text">Step 1 of 5</div>
+                <button class="seq-nav-btn" id="seq-btn-next" onclick="stepSequence(1)">Next Step ▶</button>
+              </div>
+
+              <!-- Interactive viewport -->
+              <div class="seq-diag-viewport">
+                <!-- SVG Canvas drawn by JS dynamically -->
+                <svg class="seq-svg-canvas" id="seq-svg"></svg>
+              </div>
+
+            </div>
+
+            <!-- Context / Description Column -->
+            <div class="seq-step-desc-panel">
+              <div class="seq-step-title">
+                <div class="seq-step-num-badge" id="seq-desc-step-num">1</div>
+                <span id="seq-desc-step-title">Select User</span>
+              </div>
+              <div>
+                <span class="seq-step-badge" id="seq-desc-step-badge">GET /api/seats</span>
+              </div>
+              <p class="seq-step-detail-txt" id="seq-desc-step-desc">
+                Description goes here.
+              </p>
+              
+              <div style="border-top: 1px solid var(--border-dim); padding-top:16px; margin-top:auto;">
+                <div style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono); margin-bottom:6px;">API Payload / DB SQL:</div>
+                <pre style="margin:0; font-size:0.7rem; color:#fde68a; background:#0b0806; max-height:150px; overflow-y:auto;"><code id="seq-desc-step-code"></code></pre>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- =========================================================
+           VIEW: SIMULATOR
+           ========================================================= -->
+      <div id="view-simulator" class="view-panel">
+        
+        <div class="sim-container">
+          
+          <!-- Column 1: Controller Panel -->
+          <div class="sim-panel">
+            <div class="sim-panel-header">
+              <span>Simulation Controls</span>
+              <button class="action-btn secondary" onclick="resetSimulation()" style="padding: 4px 8px; font-size:0.7rem; width:auto;">Reset All</button>
+            </div>
+            
+            <div class="sim-panel-content">
+              <!-- User Select -->
+              <div>
+                <span style="font-size:0.8rem; font-weight:600; color:var(--text-highlight); display:block; margin-bottom:8px;">1. Select Active Client Node</span>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <button class="user-select-btn active" id="user-btn-1" onclick="switchUser('usr_1')">
+                    <div class="user-avatar-circle">D</div>
+                    <div style="text-align:left;">
+                      <div style="font-size:0.8rem; font-weight:600;">demo@example.com</div>
+                      <div style="font-size:0.7rem; color:var(--text-muted);">Demo User (Token A)</div>
+                    </div>
+                  </button>
+                  <button class="user-select-btn" id="user-btn-2" onclick="switchUser('usr_2')">
+                    <div class="user-avatar-circle user-b">B</div>
+                    <div style="text-align:left;">
+                      <div style="font-size:0.8rem; font-weight:600;">other@example.com</div>
+                      <div style="font-size:0.7rem; color:var(--text-muted);">User B (Token B)</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Primary actions -->
+              <div style="border-top:1px solid var(--border-dim); padding-top:16px;">
+                <span style="font-size:0.8rem; font-weight:600; color:var(--text-highlight); display:block; margin-bottom:8px;">2. Payment Steps</span>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                  <button class="action-btn" id="btn-checkout" onclick="startCheckout()" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                    Proceed to Payment
+                  </button>
+                  
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
+                    <button class="action-btn success" id="btn-pay-success" onclick="enqueueWebhook('checkout.session.completed')" disabled>
+                      Stripe Success
+                    </button>
+                    <button class="action-btn danger" id="btn-pay-fail" onclick="enqueueWebhook('payment_intent.payment_failed')" disabled>
+                      Stripe Fail
+                    </button>
+                  </div>
+                  <button class="action-btn secondary" id="btn-pay-expire" onclick="enqueueWebhook('checkout.session.expired')" style="font-size:0.75rem;" disabled>
+                    Simulate Stripe Session Expired
+                  </button>
+                </div>
+              </div>
+
+              <!-- Daemon / Worker Triggers -->
+              <div style="border-top:1px solid var(--border-dim); padding-top:16px; margin-top:auto;">
+                <span style="font-size:0.8rem; font-weight:600; color:var(--text-highlight); display:block; margin-bottom:8px;">3. Worker Actions</span>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <button class="action-btn secondary" onclick="runWorkerTick()" style="border-color: rgba(16, 185, 129, 0.4); color:#a7f3d0;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1.2 20 1.2 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    Run Webhook Worker Tick
+                  </button>
+                  <button class="action-btn secondary" onclick="runSweeperTick()" style="border-color: rgba(251, 191, 36, 0.4); color:#fde68a;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Run Sweeper Tick
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          
+          <!-- Column 2: Simulation Playground -->
+          <div style="display:flex; flex-direction:column; gap:20px; min-height:0;">
+            <div class="sim-panel" style="flex-grow:1;">
+              <div class="sim-panel-header">
+                <span>Interactive Venue Map & Simulator</span>
+                <span id="sim-active-session-label" style="font-size:0.75rem; color:var(--color-primary); font-family:var(--font-mono)"></span>
+              </div>
+              
+              <div class="sim-panel-content" style="justify-content: center; align-items: center;">
+                <div style="width:100%; max-width:500px;">
+                  
+                  <div class="stage-canvas">
+                    <div class="stage-screen"></div>
+                    <div class="stage-text">STAGE / SCREEN</div>
+                    
+                    <div class="sim-seats-row">
+                      <div class="sim-seat-box available" id="seat-tile-seat_1" onclick="clickSeat('seat_1')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>Seat A</span>
+                        <div class="countdown-label" id="seat-timer-seat_1"></div>
+                      </div>
+                      <div class="sim-seat-box available" id="seat-tile-seat_2" onclick="clickSeat('seat_2')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>Seat B</span>
+                        <div class="countdown-label" id="seat-timer-seat_2"></div>
+                      </div>
+                      <div class="sim-seat-box available" id="seat-tile-seat_3" onclick="clickSeat('seat_3')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <span>Seat C</span>
+                        <div class="countdown-label" id="seat-timer-seat_3"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); background:rgba(0,0,0,0.1); padding:8px 12px; border-radius:6px; border:1px solid var(--border-dim);">
+                    <div>Seat hold duration: <strong>60 seconds</strong></div>
+                    <div>Price: <strong>USD 50.00</strong></div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Console Log -->
+            <div class="sim-panel" style="height:200px; flex-shrink:0;">
+              <div class="sim-panel-header">Console Output / Logs</div>
+              <div class="sim-panel-content" style="padding:10px;">
+                <div class="sim-console" id="sim-console-logs">
+                  <!-- Javascript logs inserted here -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Column 3: DB Inspector -->
+          <div class="sim-panel">
+            <div class="sim-panel-header">
+              <span>Database State (Postgres)</span>
+            </div>
+            
+            <div class="sim-panel-content" style="font-size:0.8rem; gap:16px;">
+              <!-- Holds Table -->
+              <div>
+                <div class="flex-header-container">
+                  <h3>seat_holds</h3>
+                </div>
+                <div class="db-table-wrapper" id="db-holds-wrapper">
+                  <table class="db-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Seat</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="db-holds-body">
+                      <!-- Rendered JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Payments Table -->
+              <div>
+                <div class="flex-header-container">
+                  <h3>payments</h3>
+                </div>
+                <div class="db-table-wrapper" id="db-payments-wrapper">
+                  <table class="db-table">
+                    <thead>
+                      <tr>
+                        <th>Hold ID</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="db-payments-body">
+                      <!-- Rendered JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Webhook Inbox Table -->
+              <div>
+                <div class="flex-header-container">
+                  <h3>payment_events (Inbox)</h3>
+                </div>
+                <div class="db-table-wrapper" id="db-events-wrapper">
+                  <table class="db-table">
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Processed?</th>
+                      </tr>
+                    </thead>
+                    <tbody id="db-events-body">
+                      <!-- Rendered JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // -------------------------------------------------------------
+    // INTERACTIVE ARCHITECTURE COMPONENT DATA
+    // -------------------------------------------------------------
+    const archComponents = {
+      'client': {
+        title: "Client Portal (ReservationApp)",
+        meta: "src/app/ReservationApp.tsx (React, TypeScript)",
+        desc: "Interactive React single-page UI mapped with state handlers. Collects credentials, manages cookie & bearer token validation scopes, and fires API actions. Establishes SSE stream connection to fanned availability ticks.",
+        methods: "sessionStorage client tokens\nVisibilityState polling fallback\nSSE event stream listener"
+      },
+      'edge': {
+        title: "Nginx Rate Limiting Edge Proxy",
+        meta: "infra/nginx/nginx.conf (Reverse Proxy & Cache)",
+        desc: "Ingress proxy configured with standard rate-limit zones to mitigate credential stuffing and request exhaustion attacks at the boundary. Buffering is disabled for /api/seats/stream to support SSE.",
+        methods: "limit_req zones: auth (10r/m), seat_mutation (30r/m),\npayment_checkout (10r/m), payment_status (120r/m),\nwebhook (300r/m)"
+      },
+      'stripe': {
+        title: "Stripe Checkout & Event Gateway",
+        meta: "Stripe API (External Service Platform)",
+        desc: "Third-party payment checkout orchestrator. Handles card collection externally, avoiding server-side PCI scope. Dispatches signed transaction webhooks upon session status mutations.",
+        methods: "stripe.checkout.sessions.create\nWebhook: checkout.session.completed (paid)\nWebhook: payment_intent.payment_failed\nWebhook: checkout.session.expired"
+      },
+      'route-auth': {
+        title: "Auth Router Endpoint",
+        meta: "src/app/api/auth/* (Next.js Route Handlers)",
+        desc: "Ingress handler for registration, login, token refresh, and logout. Scopes session cookie scopes securely and validates CSRF verification headers on mutation calls.",
+        methods: "POST /api/auth/register\nPOST /api/auth/login\nPOST /api/auth/refresh\nPOST /api/auth/logout"
+      },
+      'route-seats': {
+        title: "Seats Inventory Router",
+        meta: "src/app/api/seats/* (Next.js Route Handlers)",
+        desc: "Retrieves seat states and handles hold requests. Invokes authorization logic checks and pushes availability updates to the SSE server layer.",
+        methods: "GET /api/seats\nPOST /api/seats/hold\nGET /api/seats/stream (SSE)"
+      },
+      'route-payments': {
+        title: "Checkout & Payments Router",
+        meta: "src/app/api/payments/* (Next.js Route Handlers)",
+        desc: "Fires Stripe Checkout creation commands and answers client status polling requests for terminal payment resolutions.",
+        methods: "POST /api/payments/checkout\nGET /api/payments/:paymentId"
+      },
+      'route-stripe': {
+        title: "Stripe Webhook Receiver Endpoint",
+        meta: "src/app/api/stripe/webhook (Next.js Route Handler)",
+        desc: "Verifies Stripe HMAC signatures, saves events to the raw queue table immediately for fast acknowledgment, and wakes up the inbox worker.",
+        methods: "POST /api/stripe/webhook (fast-ack)\nSignature verified: stripe.webhooks.constructEvent"
+      },
+      'srv-auth': {
+        title: "Auth Service Module",
+        meta: "src/server/auth/service.ts (Domain Module)",
+        desc: "Manages password hashing, signed access tokens, and rotating refresh tokens. Incorporates family rotation checks to auto-revoke compromised sessions on double-read attempts.",
+        methods: "registerUser(email, password)\nloginUser(email, password)\nrefreshUserSession(refreshToken, csrfToken)\nlogoutUserSession(refreshToken, csrfToken)"
+      },
+      'srv-seats': {
+        title: "Seats Service Module",
+        meta: "src/server/seats/service.ts (Domain Module)",
+        desc: "Validates seat availability constraints and processes locks. Resolves hold actions under serializable transactions to prevent race conditions.",
+        methods: "listSeatAvailability(userId)\nholdSeat(userId, seatId)\nreleaseActiveHold(userId, holdId)\nexpireActiveSeatHolds(tx, now)"
+      },
+      'srv-payments': {
+        title: "Payments & Stripe Handler Service",
+        meta: "src/server/payments/checkout.ts (Domain Module)",
+        desc: "Creates Stripe sessions and tracks local payments. Implements active transaction checks to prevent duplicate checkouts for a single hold.",
+        methods: "createCheckoutSession(userId, holdId)\nfindActivePayment(userId, holdId)\ncreatePaymentRecord(userId, holdId)"
+      },
+      'wkr-sweeper': {
+        title: "Seat Hold Sweeper Loop",
+        meta: "src/server/seats/sweeper.ts (Background Worker)",
+        desc: "In-process loop executing periodically. Scans the database for active expired holds, marks them expired, and broadcasts seat updates to all connected clients.",
+        methods: "startSeatHoldSweeper()\nsweepExpiredSeatHoldsOnce()\nexpireActiveSeatHolds(prisma, now)"
+      },
+      'wkr-inbox': {
+        title: "Webhook Inbox Worker Queue",
+        meta: "src/server/payments/webhook-worker.ts (Background Worker)",
+        desc: "Single-process queue worker. Extracts unprocessed events sequentially using database locking, verifies metadata matches, and confirms bookings.",
+        methods: "startStripeWebhookInboxWorker()\ndrainPendingStripeWebhookEvents()\nprocessClaimedStripeEvent(tx, event)"
+      },
+      'db': {
+        title: "PostgreSQL Engine & Prisma Client",
+        meta: "prisma/schema.prisma (Database Layer)",
+        desc: "Relational persistence engine. Enforces data invariants at the storage boundary using partial unique indexes, ensuring safety against transaction conflicts.",
+        methods: "Prisma client transaction wrappers\nEnforces UNIQUE locks for: active holds,\nconfirmed reservations, active checkouts"
+      }
+    };
+
+    function selectArchNode(nodeId) {
+      document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('active'));
+      
+      const node = document.getElementById(`arch-${nodeId}`);
+      if (node) node.classList.add('active');
+
+      const data = archComponents[nodeId];
+      if (data) {
+        document.getElementById('arch-detail-title').innerText = data.title;
+        document.getElementById('arch-detail-meta').innerText = data.meta;
+        document.getElementById('arch-detail-desc').innerText = data.desc;
+        
+        const codeBlock = document.getElementById('arch-detail-code-block');
+        const codeMethods = document.getElementById('arch-detail-methods');
+        if (data.methods) {
+          codeMethods.innerText = data.methods;
+          codeBlock.style.display = 'block';
+        } else {
+          codeBlock.style.display = 'none';
+        }
+      }
+    }
+
+    // Default select
+    selectArchNode('client');
+
+    // -------------------------------------------------------------
+    // INTERACTIVE DATA MODEL RELATIONSHIPS
+    // -------------------------------------------------------------
+    const entitiesData = {
+      'User': {
+        desc: "Represents authenticated clients. Owns credentials, sessions, holds, payments, and reservations.",
+        relations: [
+          "1-to-many relationship with <strong>UserSession</strong> (cascade delete)",
+          "1-to-many relationship with <strong>SeatHold</strong> (cascade delete)",
+          "1-to-many relationship with <strong>Reservation</strong>",
+          "1-to-many relationship with <strong>Payment</strong>"
+        ],
+        sql: "email String @unique"
+      },
+      'UserSession': {
+        desc: "Represents user sessions. Refresh tokens and CSRF tokens are hashed before storage.",
+        relations: [
+          "Belongs to <strong>User</strong> (foreign key: <code>userId</code>)",
+          "Rotates refresh and CSRF token hashes on token reuse check transactions"
+        ],
+        sql: "refreshTokenHash String @unique<br/>csrfTokenHash String"
+      },
+      'Seat': {
+        desc: "Represents physical seats. May be available, held, or reserved.",
+        relations: [
+          "1-to-many relationship with <strong>SeatHold</strong>",
+          "1-to-many relationship with <strong>Reservation</strong>"
+        ],
+        sql: "label String @unique<br/>sortOrder Int @unique"
+      },
+      'SeatHold': {
+        desc: "Represents temporary seat holds. A user can have at most one active hold at a time.",
+        relations: [
+          "Belongs to <strong>Seat</strong> (foreign key: <code>seatId</code>)",
+          "Belongs to <strong>User</strong> (foreign key: <code>userId</code>)",
+          "1-to-1 relationship with <strong>Reservation</strong>",
+          "1-to-many relationship with <strong>Payment</strong>"
+        ],
+        sql: "UNIQUE INDEX (seat_id) WHERE status = 'active'<br/>UNIQUE INDEX (user_id) WHERE status = 'active'"
+      },
+      'Reservation': {
+        desc: "Represents confirmed bookings. Exclusivity is guarded by a partial unique index.",
+        relations: [
+          "Belongs to <strong>Seat</strong>",
+          "Belongs to <strong>User</strong>",
+          "Belongs to <strong>SeatHold</strong> (foreign key: <code>seatHoldId</code>)"
+        ],
+        sql: "UNIQUE INDEX (seat_id) WHERE status = 'confirmed'<br/>seatHoldId String @unique"
+      },
+      'Payment': {
+        desc: "Tracks Stripe checkout sessions. Prevents duplicate sessions for a single hold.",
+        relations: [
+          "Belongs to <strong>User</strong>",
+          "Belongs to <strong>SeatHold</strong> (foreign key: <code>seatHoldId</code>)",
+          "1-to-many relationship with <strong>PaymentEvent</strong>"
+        ],
+        sql: "stripeCheckoutSessionId String @unique<br/>UNIQUE INDEX (seat_hold_id) WHERE status IN ('checkout_created', 'processing')"
+      },
+      'PaymentEvent': {
+        desc: "Stores Stripe events for fast-ack responses and deduplication checks.",
+        relations: [
+          "Belongs to <strong>Payment</strong> (foreign key: <code>paymentId</code>)"
+        ],
+        sql: "stripeEventId String @id (deduplication check)"
+      }
+    };
+
+    const relationsMap = {
+      'User': ['UserSession', 'SeatHold', 'Reservation', 'Payment'],
+      'UserSession': ['User'],
+      'Seat': ['SeatHold', 'Reservation'],
+      'SeatHold': ['Seat', 'User', 'Reservation', 'Payment'],
+      'Reservation': ['Seat', 'User', 'SeatHold'],
+      'Payment': ['User', 'SeatHold', 'PaymentEvent'],
+      'PaymentEvent': ['Payment']
+    };
+
+    function selectEntity(entityName) {
+      document.querySelectorAll('.er-entity-card').forEach(c => {
+        c.classList.remove('active', 'connected');
+      });
+
+      const selectedCard = document.getElementById(`er-${entityName}`);
+      if (selectedCard) selectedCard.classList.add('active');
+
+      const connectedList = relationsMap[entityName] || [];
+      connectedList.forEach(connectedName => {
+        const connCard = document.getElementById(`er-${connectedName}`);
+        if (connCard) connCard.classList.add('connected');
+      });
+
+      const data = entitiesData[entityName];
+      if (data) {
+        document.getElementById('er-drawer-panel').style.display = 'block';
+        document.getElementById('er-drawer-title').innerText = `Entity Inspector: ${entityName}`;
+        document.getElementById('er-drawer-desc').innerText = data.desc;
+        
+        const relContainer = document.getElementById('er-drawer-relations');
+        relContainer.innerHTML = '';
+        data.relations.forEach(r => {
+          relContainer.innerHTML += `<li>${r}</li>`;
+        });
+
+        document.getElementById('er-drawer-sql').innerHTML = data.sql;
+      }
+    }
+
+    // Default select
+    selectEntity('SeatHold');
+
+    // -------------------------------------------------------------
+    // CUSTOM INTERACTIVE SVG SEQUENCE PLAYER ENGINE
+    // -------------------------------------------------------------
+    const sequenceFlows = {
+      auth: {
+        participants: ["Browser", "API Route", "Auth Service", "Database"],
+        steps: [
+          {
+            from: "Browser", to: "API Route", label: "POST /api/auth/login",
+            desc: "Client submits email and password. Browser fires a secure API route call.",
+            code: "POST /api/auth/login\nBody: { email: 'demo@example.com', password: '...' }"
+          },
+          {
+            from: "API Route", to: "Auth Service", label: "loginUser(email, password)",
+            desc: "Next.js Route Handler delegates authentication flow to the Auth Service module.",
+            code: "await loginUser(body.email, body.password);"
+          },
+          {
+            from: "Auth Service", to: "Database", label: "SELECT passwordHash FROM users WHERE email",
+            desc: "Service queries PostgreSQL via Prisma to retrieve the stored password hash.",
+            code: "prisma.user.findUnique({ where: { email } })"
+          },
+          {
+            from: "Auth Service", to: "Auth Service", label: "Verify password (Argon2)",
+            desc: "Validates the plaintext password against the retrieved hash using Argon2.",
+            code: "const matches = await verifyPassword(hash, password);"
+          },
+          {
+            from: "Auth Service", to: "Database", label: "INSERT user_sessions (family ID)",
+            desc: "Creates a revocable UserSession record. Hashes refresh and CSRF tokens before insert.",
+            code: "prisma.userSession.create({\n  data: { userId, sessionFamilyId, refreshTokenHash }\n})"
+          },
+          {
+            from: "Auth Service", to: "API Route", label: "Return Access/CSRF Tokens",
+            desc: "Signs a short-lived (15 min) JWT Access Token and returns payload tokens.",
+            code: "return { accessToken, csrfToken, user };"
+          },
+          {
+            from: "API Route", to: "Browser", label: "HTTP 200 (Cookie: refreshToken)",
+            desc: "Sets the rotating refresh token in an HttpOnly SameSite=Strict cookie and returns access/CSRF tokens.",
+            code: "Response.cookie('refreshToken', token, { httpOnly: true, secure: true })\nBody: { accessToken, csrfToken }"
+          },
+          {
+            from: "Browser", to: "API Route", label: "POST /api/auth/refresh (Header: x-csrf-token)",
+            desc: "Browser requests session refresh automatically, sending the CSRF token in the headers.",
+            code: "POST /api/auth/refresh\nHeaders: { 'x-csrf-token': csrfToken }\nCookie: [refreshToken automatically included]"
+          },
+          {
+            from: "API Route", to: "Auth Service", label: "refreshUserSession(refreshToken, csrfToken)",
+            desc: "Auth service starts a database transaction to verify session state.",
+            code: "prisma.$transaction(async (tx) => { ... })"
+          },
+          {
+            from: "Auth Service", to: "Database", label: "Verify active Session Family",
+            desc: "Checks session validity. If token reuse is detected, the transaction revokes the entire session family.",
+            code: "if (session.revokedAt || session.rotatedAt) {\n  // Reuse detected!\n  await tx.userSession.updateMany({ where: { sessionFamilyId } })\n}"
+          }
+        ]
+      },
+      checkout: {
+        participants: ["Browser", "API Route", "Seat Service", "Payments Service", "Database", "Stripe API"],
+        steps: [
+          {
+            from: "Browser", to: "API Route", label: "POST /api/seats/hold {seatId}",
+            desc: "User clicks a seat. Browser sends a hold request with the JWT access token.",
+            code: "POST /api/seats/hold\nHeaders: { Authorization: 'Bearer JWT' }\nBody: { seatId: 'seat_1' }"
+          },
+          {
+            from: "API Route", to: "Seat Service", label: "holdSeat(userId, seatId)",
+            desc: "Seat Service processes the hold request within a database transaction.",
+            code: "await holdSeat({ userId, seatId });"
+          },
+          {
+            from: "Seat Service", to: "Database", label: "Update old holds & Insert new hold",
+            desc: "Expires previous holds, releases any other active hold for this user, and inserts a new active hold. Postgres indexes enforce exclusivity.",
+            code: "tx.seatHold.create({\n  data: { seatId, userId, status: 'active', expiresAt }\n})"
+          },
+          {
+            from: "API Route", to: "Browser", label: "HTTP 200 {holdId}",
+            desc: "Server confirms seat hold and returns the hold details. Client starts a 60s countdown timer.",
+            code: "Response: { status: 'success', hold: { id: 'hold_1', expiresAt: '...' } }"
+          },
+          {
+            from: "Browser", to: "API Route", label: "POST /api/payments/checkout {holdId}",
+            desc: "User clicks 'Proceed to payment' to start checkout.",
+            code: "POST /api/payments/checkout\nBody: { holdId: 'hold_1' }"
+          },
+          {
+            from: "API Route", to: "Payments Service", label: "createCheckoutSession(userId, holdId)",
+            desc: "Payments Service validates the hold status and checks for existing payments.",
+            code: "await createCheckoutSession({ userId, holdId });"
+          },
+          {
+            from: "Payments Service", to: "Database", label: "INSERT payments (checkout_created)",
+            desc: "Creates a local payment record. A partial unique index ensures only one active checkout exists per hold.",
+            code: "prisma.payment.create({ data: { status: 'checkout_created' } })"
+          },
+          {
+            from: "Payments Service", to: "Stripe API", label: "stripe.checkout.sessions.create",
+            desc: "Fires a checkout session request to Stripe with metadata. The Stripe idempotency key is set to 'seat-hold:{holdId}'.",
+            code: "stripe.checkout.sessions.create({\n  client_reference_id: payment.id,\n  metadata: { holdId, paymentId }\n}, { idempotencyKey })"
+          },
+          {
+            from: "Payments Service", to: "Database", label: "UPDATE payments (stripe session details)",
+            desc: "Saves the Stripe Session ID and Checkout URL to the payment record.",
+            code: "prisma.payment.update({ data: { stripeCheckoutSessionId, checkoutUrl } })"
+          },
+          {
+            from: "API Route", to: "Browser", label: "HTTP 200 {checkoutUrl}",
+            desc: "Returns the Stripe Checkout URL. Client redirects user to Stripe's payment page.",
+            code: "Response: { checkoutUrl: 'https://checkout.stripe.com/...' }"
+          }
+        ]
+      },
+      webhook: {
+        participants: ["Stripe API", "API Route", "Database", "Inbox Worker"],
+        steps: [
+          {
+            from: "Stripe API", to: "API Route", label: "POST /api/stripe/webhook",
+            desc: "Stripe dispatches a signed webhook event upon payment completion.",
+            code: "POST /api/stripe/webhook\nHeaders: { 'stripe-signature': '...' }"
+          },
+          {
+            from: "API Route", to: "API Route", label: "Verify Signature",
+            desc: "Verifies signature authenticity using the signing secret to prevent spoofing.",
+            code: "stripe.webhooks.constructEvent(body, signature, secret)"
+          },
+          {
+            from: "API Route", to: "Database", label: "INSERT payment_events (unprocessed)",
+            desc: "Saves the raw event in payment_events. A primary key constraint on event ID prevents duplicate processing.",
+            code: "prisma.paymentEvent.create({ data: { stripeEventId, payload } })"
+          },
+          {
+            from: "API Route", to: "Stripe API", label: "HTTP 200 OK (Fast-Ack)",
+            desc: "Route handler immediately responds with 200 OK to prevent Stripe timeouts.",
+            code: "Response: { received: true, status: 'accepted' }"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "Claim Event (SKIP LOCKED)",
+            desc: "Worker claims unprocessed events sequentially using lock-skipping Postgres queries.",
+            code: "SELECT * FROM payment_events\nWHERE processed_at IS NULL\nLIMIT 1 FOR UPDATE SKIP LOCKED"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "Verify seat hold status & reservation conflict",
+            desc: "Checks if the hold is still active and unexpired, and verifies that the seat is not already reserved.",
+            code: "prisma.reservation.findFirst({ where: { seatId, status: 'confirmed' } })"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "Finalize: INSERT reservation & UPDATE hold",
+            desc: "Converts the hold to 'converted', confirms the reservation, and marks payment as 'succeeded'.",
+            code: "tx.reservation.create({ data: { seatId, seatHoldId } })\ntx.seatHold.update({ data: { status: 'converted' } })\ntx.payment.update({ data: { status: 'succeeded' } })"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "UPDATE payment_events (processed_at = now)",
+            desc: "Marks the webhook event as processed to prevent reprocessing.",
+            code: "prisma.paymentEvent.update({ where: { stripeEventId }, data: { processedAt: now } })"
+          }
+        ]
+      },
+      expiry: {
+        participants: ["Sweeper", "Stripe API", "API Route", "Database", "Inbox Worker"],
+        steps: [
+          {
+            from: "Sweeper", to: "Database", label: "Scan & Update expired holds",
+            desc: "Sweeper scans for active expired holds, marks them expired, and broadcasts updates via SSE.",
+            code: "prisma.seatHold.updateMany({\n  where: { status: 'active', expiresAt: { lte: now } },\n  data: { status: 'expired' }\n})"
+          },
+          {
+            from: "Stripe API", to: "API Route", label: "POST /api/stripe/webhook (checkout.session.expired)",
+            desc: "Stripe dispatches an expired checkout session webhook event.",
+            code: "POST /api/stripe/webhook\nPayload: { type: 'checkout.session.expired' }"
+          },
+          {
+            from: "API Route", to: "Database", label: "INSERT payment_events (Fast-Ack)",
+            desc: "Saves the event to the queue and responds with 200 OK immediately.",
+            code: "prisma.paymentEvent.create({ data: { stripeEventId, payload } })"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "Claim and process event",
+            desc: "Worker claims the event and verifies the payment status.",
+            code: "SELECT * FROM payment_events WHERE processed_at IS NULL LIMIT 1 FOR UPDATE SKIP LOCKED"
+          },
+          {
+            from: "Inbox Worker", to: "Database", label: "Release hold & UPDATE payment (expired/failed)",
+            desc: "Releases the active seat hold and marks the payment as expired or failed.",
+            code: "tx.seatHold.updateMany({ where: { id: holdId }, data: { status: 'released' } })\ntx.payment.update({ data: { status: 'expired' } })"
+          }
+        ]
+      }
+    };
+
+    let activeFlowKey = "auth";
+    let activeStepIndex = 0;
+
+    // Switch sequence flow
+    document.querySelectorAll('.flow-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.flow-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        activeFlowKey = tab.getAttribute('data-flow');
+        activeStepIndex = 0;
+        renderSequence();
+      });
+    });
+
+    function stepSequence(direction) {
+      const flow = sequenceFlows[activeFlowKey];
+      const nextIndex = activeStepIndex + direction;
+      if (nextIndex >= 0 && nextIndex < flow.steps.length) {
+        activeStepIndex = nextIndex;
+        renderSequence();
+      }
+    }
+
+    function renderSequence() {
+      const flow = sequenceFlows[activeFlowKey];
+      const step = flow.steps[activeStepIndex];
+      const totalSteps = flow.steps.length;
+
+      // Update Controls UI
+      document.getElementById('seq-step-indicator-text').innerText = `Step ${activeStepIndex + 1} of ${totalSteps}`;
+      document.getElementById('seq-btn-prev').disabled = activeStepIndex === 0;
+      document.getElementById('seq-btn-next').disabled = activeStepIndex === totalSteps - 1;
+
+      // Update description panel
+      document.getElementById('seq-desc-step-num').textContent = activeStepIndex + 1;
+      document.getElementById('seq-desc-step-title').textContent = step.label;
+      document.getElementById('seq-desc-step-badge').textContent = `Source: ${step.from} → Target: ${step.to}`;
+      document.getElementById('seq-desc-step-desc').textContent = step.desc;
+      document.getElementById('seq-desc-step-code').textContent = step.code;
+
+      // Draw Sequence SVG dynamically
+      drawSequenceSVG(flow, activeStepIndex);
+    }
+
+    function drawSequenceSVG(flow, currentStepIdx) {
+      const svg = document.getElementById('seq-svg');
+      svg.innerHTML = ''; // clear
+
+      const participants = flow.participants;
+      const steps = flow.steps;
+
+      const pCount = participants.length;
+      const width = Math.max(650, pCount * 140);
+      const height = (steps.length * 50) + 120;
+      
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      svg.style.minHeight = `${height}px`;
+
+      // Draw Markers
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+      marker.setAttribute("id", "arrow");
+      marker.setAttribute("viewBox", "0 0 10 10");
+      marker.setAttribute("refX", "6");
+      marker.setAttribute("refY", "5");
+      marker.setAttribute("markerWidth", "6");
+      marker.setAttribute("markerHeight", "6");
+      marker.setAttribute("orient", "auto-start-reverse");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M 0 1 L 10 5 L 0 9 z");
+      path.setAttribute("fill", "#f97316");
+      marker.appendChild(path);
+      defs.appendChild(marker);
+
+      const markerActive = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+      markerActive.setAttribute("id", "arrow-active");
+      markerActive.setAttribute("viewBox", "0 0 10 10");
+      markerActive.setAttribute("refX", "6");
+      markerActive.setAttribute("refY", "5");
+      markerActive.setAttribute("markerWidth", "6");
+      markerActive.setAttribute("markerHeight", "6");
+      markerActive.setAttribute("orient", "auto-start-reverse");
+      const pathActive = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      pathActive.setAttribute("d", "M 0 1 L 10 5 L 0 9 z");
+      pathActive.setAttribute("fill", "#f59e0b");
+      markerActive.appendChild(pathActive);
+      defs.appendChild(markerActive);
+      
+      svg.appendChild(defs);
+
+      // Compute participant X coordinates
+      const pX = {};
+      const paddingX = 70;
+      const gapX = (width - (paddingX * 2)) / (pCount - 1);
+
+      participants.forEach((name, idx) => {
+        pX[name] = paddingX + (idx * gapX);
+      });
+
+      // 1. Draw lifelines
+      participants.forEach(name => {
+        const x = pX[name];
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", x);
+        line.setAttribute("y1", 60);
+        line.setAttribute("x2", x);
+        line.setAttribute("y2", height - 40);
+        line.setAttribute("stroke", "#2e251e");
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("stroke-dasharray", "4 4");
+        svg.appendChild(line);
+      });
+
+      // 2. Draw Participant Headers
+      participants.forEach(name => {
+        const x = pX[name];
+        
+        // Header card
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", x - 60);
+        rect.setAttribute("y", 15);
+        rect.setAttribute("width", 120);
+        rect.setAttribute("height", 36);
+        rect.setAttribute("rx", "6");
+        
+        const step = steps[currentStepIdx];
+        const isActivePart = (step.from === name || step.to === name);
+
+        rect.setAttribute("fill", isActivePart ? "rgba(249, 115, 22, 0.15)" : "#1c1612");
+        rect.setAttribute("stroke", isActivePart ? "#f97316" : "#443427");
+        rect.setAttribute("stroke-width", "1.5");
+        svg.appendChild(rect);
+
+        // Text (Fixed to use textContent instead of innerText)
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", x);
+        text.setAttribute("y", 37);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("fill", isActivePart ? "#ffffff" : "#a8a29e");
+        text.setAttribute("font-family", "Outfit");
+        text.setAttribute("font-size", "11px");
+        text.setAttribute("font-weight", "600");
+        text.textContent = name;
+        svg.appendChild(text);
+      });
+
+      // 3. Draw Message arrows
+      steps.forEach((step, idx) => {
+        const y = 80 + (idx * 50);
+        const x1 = pX[step.from];
+        const x2 = pX[step.to];
+        const isCurrent = idx === currentStepIdx;
+
+        // Message line
+        if (x1 === x2) {
+          // Self loop message
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", `M ${x1} ${y} H ${x1 + 30} V ${y + 20} H ${x1 + 10}`);
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke", isCurrent ? "#f59e0b" : "#57483d");
+          path.setAttribute("stroke-width", isCurrent ? "2.5" : "1.2");
+          path.setAttribute("marker-end", isCurrent ? "url(#arrow-active)" : "url(#arrow)");
+          if (isCurrent) {
+            path.setAttribute("stroke-dasharray", "4 4");
+            path.setAttribute("class", "seq-anim-path");
+          }
+          svg.appendChild(path);
+
+          // Label (Fixed to use textContent instead of innerText)
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.setAttribute("x", x1 + 36);
+          text.setAttribute("y", y + 14);
+          text.setAttribute("fill", isCurrent ? "#f59e0b" : "#78716c");
+          text.setAttribute("font-family", "Fira Code");
+          text.setAttribute("font-size", "9px");
+          text.textContent = step.label;
+          svg.appendChild(text);
+        } else {
+          // Straight arrow message
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", x1);
+          line.setAttribute("y1", y);
+          const offset = x1 < x2 ? -4 : 4;
+          line.setAttribute("x2", x2 + offset);
+          line.setAttribute("y2", y);
+          line.setAttribute("stroke", isCurrent ? "#f59e0b" : "#57483d");
+          line.setAttribute("stroke-width", isCurrent ? "2.5" : "1.2");
+          line.setAttribute("marker-end", isCurrent ? "url(#arrow-active)" : "url(#arrow)");
+          if (isCurrent) {
+            line.setAttribute("stroke-dasharray", "4 4");
+            line.setAttribute("class", "seq-anim-path");
+          }
+          svg.appendChild(line);
+
+          // Step Number Badge on Line
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", (x1 + x2) / 2);
+          circle.setAttribute("cy", y);
+          circle.setAttribute("r", "8");
+          circle.setAttribute("fill", isCurrent ? "#f59e0b" : "#2e251e");
+          svg.appendChild(circle);
+
+          const numText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          numText.setAttribute("x", (x1 + x2) / 2);
+          numText.setAttribute("y", y + 3);
+          numText.setAttribute("text-anchor", "middle");
+          numText.setAttribute("fill", isCurrent ? "#0f0b08" : "#ffffff");
+          numText.setAttribute("font-size", "8px");
+          numText.setAttribute("font-weight", "bold");
+          numText.textContent = idx + 1;
+          svg.appendChild(numText);
+
+          // Label (Fixed to use textContent instead of innerText & adjusted position)
+          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          text.setAttribute("x", (x1 + x2) / 2);
+          text.setAttribute("y", y - 10);
+          text.setAttribute("text-anchor", "middle");
+          text.setAttribute("fill", isCurrent ? "#ffffff" : "#a8a29e");
+          text.setAttribute("font-family", "Fira Code");
+          text.setAttribute("font-size", "9.5px");
+          text.textContent = step.label;
+          svg.appendChild(text);
+        }
+      });
+    }
+
+    // Initialize sequence
+    renderSequence();
+
+    // -------------------------------------------------------------
+    // SIMULATION ENGINE LOGIC
+    // -------------------------------------------------------------
+    // In-memory Database Mock
+    let db = {
+      holds: [],
+      payments: [],
+      reservations: [],
+      events: []
+    };
+
+    // Client Config
+    let activeUserId = 'usr_1'; // demo@example.com
+
+    const seatsConfig = {
+      seat_1: { id: 'seat_1', label: 'Seat A', sortOrder: 1 },
+      seat_2: { id: 'seat_2', label: 'Seat B', sortOrder: 2 },
+      seat_3: { id: 'seat_3', label: 'Seat C', sortOrder: 3 }
+    };
+
+    const usersConfig = {
+      usr_1: { id: 'usr_1', email: 'demo@example.com' },
+      usr_2: { id: 'usr_2', email: 'other@example.com' }
+    };
+
+    // UI elements helper mapping
+    const navItems = document.querySelectorAll('.nav-item');
+    const viewPanels = document.querySelectorAll('.view-panel');
+
+    // Navigation Switcher
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const target = item.getAttribute('data-target');
+        
+        navItems.forEach(i => i.classList.remove('active'));
+        viewPanels.forEach(p => p.classList.remove('active'));
+        
+        item.classList.add('active');
+        document.getElementById(target).classList.add('active');
+
+        // Dynamically update Header Labels
+        const titleLabel = document.getElementById('view-title-label');
+        const descLabel = document.getElementById('view-desc-label');
+
+        if (target === 'view-architecture') {
+          titleLabel.innerText = "Architecture & Component Map";
+          descLabel.innerText = "Hover or click components in the architecture diagram to inspect files, routes, and logic roles.";
+        } else if (target === 'view-datamodel') {
+          titleLabel.innerText = "Data Model & Constraints";
+          descLabel.innerText = "Database entities, relationship logic, and postgres index rules.";
+        } else if (target === 'view-decisions') {
+          titleLabel.innerText = "Architectural Decision Records";
+          descLabel.innerText = "Trade-offs and architectural designs chosen compared with alternatives.";
+        } else if (target === 'view-sequences') {
+          titleLabel.innerText = "Sequence Flows Player";
+          descLabel.innerText = "Use the interactive player below to step through sequence processes with highlighted paths.";
+          renderSequence();
+        } else if (target === 'view-simulator') {
+          titleLabel.innerText = "Interactive Venues & Engine Simulator";
+          descLabel.innerText = "A fully interactive sandboxed version of the reservation state machine.";
+        }
+      });
+    });
+
+    function log(message, type = 'info') {
+      const consoleEl = document.getElementById('sim-console-logs');
+      const time = new Date().toLocaleTimeString();
+      
+      const line = document.createElement('div');
+      line.className = 'console-line';
+      
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'console-time';
+      timeSpan.innerText = `[${time}]`;
+      
+      const msgSpan = document.createElement('span');
+      msgSpan.className = `console-msg ${type}`;
+      msgSpan.innerText = message;
+      
+      line.appendChild(timeSpan);
+      line.appendChild(msgSpan);
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    // Switch Client context
+    function switchUser(userId) {
+      activeUserId = userId;
+      document.getElementById('user-btn-1').classList.toggle('active', userId === 'usr_1');
+      document.getElementById('user-btn-2').classList.toggle('active', userId === 'usr_2');
+      
+      log(`Switched context to client node: ${usersConfig[userId].email}`, 'info');
+      updateUI();
+    }
+
+    // Interactive Seat Tile Clicking
+    function clickSeat(seatId) {
+      const user = usersConfig[activeUserId];
+      
+      // Perform hold validation simulation
+      expireHoldsSync();
+
+      // Check if seat already has a confirmed reservation
+      const hasReservation = db.reservations.some(r => r.seatId === seatId && r.status === 'confirmed');
+      if (hasReservation) {
+        log(`Exclusivity Aborted: ${seatsConfig[seatId].label} is already reserved permanently.`, 'error');
+        return;
+      }
+
+      // Check if seat held by someone else
+      const hasActiveHold = db.holds.some(h => h.seatId === seatId && h.status === 'active' && h.userId !== activeUserId);
+      if (hasActiveHold) {
+        log(`Lock Denied: ${seatsConfig[seatId].label} has an active hold by another client node.`, 'error');
+        return;
+      }
+
+      // If user clicks their own active hold, do nothing
+      const ownHold = db.holds.find(h => h.seatId === seatId && h.userId === activeUserId && h.status === 'active');
+      if (ownHold) {
+        log(`Client already holds ${seatsConfig[seatId].label}. No action required.`, 'info');
+        return;
+      }
+
+      // Safe to proceed -> DB transaction simulation
+      const existingUserHold = db.holds.find(h => h.userId === activeUserId && h.status === 'active');
+      let replacedHoldId = null;
+      if (existingUserHold) {
+        existingUserHold.status = 'released';
+        existingUserHold.releasedAt = new Date();
+        replacedHoldId = existingUserHold.id;
+        log(`Released previous active hold (ID: ${existingUserHold.id}) for user ${user.email}`, 'warning');
+      }
+
+      // Create new hold
+      const newHold = {
+        id: 'hold_' + Math.random().toString(36).substr(2, 9),
+        seatId: seatId,
+        userId: activeUserId,
+        status: 'active',
+        expiresAt: new Date(Date.now() + 60000), // 60s hold
+        releasedAt: null,
+        convertedAt: null
+      };
+      
+      db.holds.push(newHold);
+      log(`Database Transaction Succeeded: Created hold ${newHold.id} on ${seatsConfig[seatId].label} for ${user.email}. Expires in 60s.`, 'success');
+      flashElement(`seat-tile-${seatId}`);
+      updateUI();
+    }
+
+    // Create Stripe Checkout Session
+    function startCheckout() {
+      const activeHold = db.holds.find(h => h.userId === activeUserId && h.status === 'active');
+      if (!activeHold) {
+        log("Checkout Error: No active hold found for current client session.", "error");
+        return;
+      }
+
+      if (new Date() >= activeHold.expiresAt) {
+        log("Checkout Aborted: Seat hold has expired.", "error");
+        expireHoldsSync();
+        updateUI();
+        return;
+      }
+
+      const activePayment = db.payments.find(p => p.seatHoldId === activeHold.id && ['checkout_created', 'processing'].includes(p.status));
+      if (activePayment) {
+        log(`Checkout reused: Stripe Checkout Session URL found for hold ${activeHold.id}.`, 'info');
+        updateUI();
+        return;
+      }
+
+      const paymentId = 'pay_' + Math.random().toString(36).substr(2, 9);
+      const newPayment = {
+        id: paymentId,
+        userId: activeUserId,
+        seatHoldId: activeHold.id,
+        stripeCheckoutSessionId: 'cs_test_' + paymentId,
+        stripePaymentIntentId: 'pi_test_' + paymentId,
+        status: 'checkout_created',
+        amountCents: 5000,
+        currency: 'usd',
+        requiresReviewReason: null
+      };
+
+      db.payments.push(newPayment);
+      log(`Checkout initialized: Local payment record created (ID: ${newPayment.id}). Simulating redirecting client to Stripe Checkout page...`, 'success');
+      
+      flashElement('db-payments-wrapper');
+      updateUI();
+    }
+
+    // Simulate Stripe webhook arrival (Fast-Ack to queue)
+    function enqueueWebhook(stripeEventType) {
+      const activeHold = db.holds.find(h => h.userId === activeUserId && h.status === 'active');
+      let payment = null;
+      if (activeHold) {
+        payment = db.payments.find(p => p.seatHoldId === activeHold.id && ['checkout_created', 'processing'].includes(p.status));
+      }
+      
+      if (!payment) {
+        payment = db.payments.slice().reverse().find(p => p.userId === activeUserId);
+      }
+
+      if (!payment) {
+        log("Webhook trigger rejected: No payment session exists for this user.", "error");
+        return;
+      }
+
+      const eventId = 'evt_' + Math.random().toString(36).substr(2, 9);
+      
+      const mockPayload = {
+        id: eventId,
+        type: stripeEventType,
+        livemode: false,
+        data: {
+          object: {
+            id: payment.stripeCheckoutSessionId,
+            payment_status: stripeEventType === 'checkout.session.completed' ? 'paid' : 'unpaid',
+            status: stripeEventType === 'checkout.session.completed' ? 'complete' : 'expired',
+            metadata: {
+              paymentId: payment.id,
+              holdId: payment.seatHoldId,
+              userId: payment.userId
+            }
+          }
+        }
+      };
+
+      const isDuplicate = db.events.some(e => e.stripeEventId === eventId);
+      if (isDuplicate) {
+        log(`Fast-Ack Webhook: Received duplicate event ${eventId}. Ignored.`, 'warning');
+        return;
+      }
+
+      db.events.push({
+        stripeEventId: eventId,
+        eventType: stripeEventType,
+        paymentId: payment.id,
+        payload: mockPayload,
+        processedAt: null
+      });
+
+      log(`Fast-Ack: Ingested webhook event '${stripeEventType}' from Stripe. Saved to payment_events (unprocessed). Responded HTTP 200 OK.`, 'success');
+      flashElement('db-events-wrapper');
+      updateUI();
+    }
+
+    // Run Inbox Worker loop
+    function runWorkerTick() {
+      const nextPendingEvent = db.events.find(e => e.processedAt === null);
+      
+      if (!nextPendingEvent) {
+        log("Inbox Worker: No pending Stripe webhook events found in queue.", "info");
+        return;
+      }
+
+      log(`Inbox Worker: Claiming event ${nextPendingEvent.stripeEventId} (locking record)...`, 'info');
+      
+      const payload = nextPendingEvent.payload;
+      const session = payload.data.object;
+      const paymentId = session.metadata.paymentId;
+      const holdId = session.metadata.holdId;
+      
+      const payment = db.payments.find(p => p.id === paymentId);
+      const hold = db.holds.find(h => h.id === holdId);
+
+      if (!payment || !hold) {
+        log(`Inbox Worker: Missing payment/hold models for event. Skipped.`, 'error');
+        nextPendingEvent.processedAt = new Date();
+        updateUI();
+        return;
+      }
+
+      const eventType = nextPendingEvent.eventType;
+      
+      if (eventType === 'checkout.session.completed') {
+        const isExpired = new Date() >= new Date(hold.expiresAt);
+        const isInactive = hold.status !== 'active';
+
+        if (isInactive || isExpired) {
+          payment.status = 'requires_review';
+          payment.requiresReviewReason = isExpired ? 'hold_expired_before_payment_confirmation' : 'hold_inactive_before_payment_confirmation';
+          log(`Exclusivity Violated: Hold ${hold.id} is no longer active (Status: ${hold.status}, Expired: ${isExpired}). Payment locked for support review.`, 'error');
+        } else {
+          const hasConflictingRes = db.reservations.some(r => r.seatId === hold.seatId && r.status === 'confirmed');
+          if (hasConflictingRes) {
+            payment.status = 'requires_review';
+            payment.requiresReviewReason = 'seat_already_reserved_at_payment_confirmation';
+            log(`Exclusivity Violated: Seat already reserved by another user. Payment marked 'requires_review'.`, 'error');
+          } else {
+            db.reservations.push({
+              id: 'res_' + Math.random().toString(36).substr(2, 9),
+              seatId: hold.seatId,
+              userId: payment.userId,
+              seatHoldId: hold.id,
+              status: 'confirmed',
+              confirmedAt: new Date()
+            });
+
+            hold.status = 'converted';
+            hold.convertedAt = new Date();
+            payment.status = 'succeeded';
+            log(`Fulfillment Completed: Reservation successfully created for Seat ${seatsConfig[hold.seatId].label}! Hold status set to converted.`, 'success');
+          }
+        }
+      } 
+      else if (eventType === 'payment_intent.payment_failed') {
+        hold.status = 'released';
+        hold.releasedAt = new Date();
+        payment.status = 'failed';
+        log(`Payment Failure: Released hold ${hold.id} for Seat ${seatsConfig[hold.seatId].label}. Payment marked failed.`, 'warning');
+      } 
+      else if (eventType === 'checkout.session.expired') {
+        hold.status = 'expired';
+        payment.status = 'expired';
+        log(`Checkout Session Expired: Hold ${hold.id} expired at payment gateway. Seat released.`, 'warning');
+      }
+
+      nextPendingEvent.processedAt = new Date();
+      updateUI();
+    }
+
+    // Run Seat Hold Sweeper loop
+    function runSweeperTick() {
+      log("Sweeper: Scanning active seat holds for expiry dates...", "info");
+      const affectedCount = expireHoldsSync();
+      
+      if (affectedCount > 0) {
+        log(`Sweeper Tick: Expired ${affectedCount} active seat holds. Cleaned up seat availability.`, 'warning');
+      } else {
+        log("Sweeper Tick: No expired holds detected.", "info");
+      }
+      updateUI();
+    }
+
+    // Expire holds helper
+    function expireHoldsSync() {
+      const now = new Date();
+      let expiredCount = 0;
+      
+      db.holds.forEach(h => {
+        if (h.status === 'active' && now >= h.expiresAt) {
+          h.status = 'expired';
+          expiredCount++;
+        }
+      });
+      return expiredCount;
+    }
+
+    // Helper UI visual highlighting
+    function flashElement(elementId) {
+      const el = document.getElementById(elementId);
+      if (el) {
+        el.classList.remove('flash-highlight');
+        void el.offsetWidth; // Trigger reflow
+        el.classList.add('flash-highlight');
+      }
+    }
+
+    // Global UI state refresher
+    function updateUI() {
+      for (const seatId in seatsConfig) {
+        const tile = document.getElementById(`seat-tile-${seatId}`);
+        const timer = document.getElementById(`seat-timer-${seatId}`);
+        
+        tile.className = 'sim-seat-box';
+        timer.innerText = '';
+
+        const reservation = db.reservations.find(r => r.seatId === seatId && r.status === 'confirmed');
+        if (reservation) {
+          tile.classList.add('reserved');
+          continue;
+        }
+
+        const hold = db.holds.find(h => h.seatId === seatId && h.status === 'active');
+        if (hold) {
+          if (hold.userId === activeUserId) {
+            tile.classList.add('held_by_you');
+          } else {
+            tile.classList.add('held');
+          }
+
+          const rem = Math.max(0, Math.floor((hold.expiresAt - new Date()) / 1000));
+          if (rem > 0) {
+            timer.innerText = `${rem}s`;
+          } else {
+            timer.innerText = '0s';
+          }
+          continue;
+        }
+
+        tile.classList.add('available');
+      }
+
+      const activeUser = usersConfig[activeUserId];
+      document.getElementById('sim-active-session-label').innerText = `Active Session: ${activeUser.email}`;
+
+      const userHold = db.holds.find(h => h.userId === activeUserId && h.status === 'active');
+      const checkoutBtn = document.getElementById('btn-checkout');
+      const paySuccessBtn = document.getElementById('btn-pay-success');
+      const payFailBtn = document.getElementById('btn-pay-fail');
+      const payExpireBtn = document.getElementById('btn-pay-expire');
+
+      if (userHold) {
+        checkoutBtn.removeAttribute('disabled');
+        
+        const payment = db.payments.find(p => p.seatHoldId === userHold.id && ['checkout_created', 'processing'].includes(p.status));
+        if (payment) {
+          paySuccessBtn.removeAttribute('disabled');
+          payFailBtn.removeAttribute('disabled');
+          payExpireBtn.removeAttribute('disabled');
+        } else {
+          paySuccessBtn.setAttribute('disabled', 'true');
+          payFailBtn.setAttribute('disabled', 'true');
+          payExpireBtn.setAttribute('disabled', 'true');
+        }
+      } else {
+        checkoutBtn.setAttribute('disabled', 'true');
+        paySuccessBtn.setAttribute('disabled', 'true');
+        payFailBtn.setAttribute('disabled', 'true');
+        payExpireBtn.setAttribute('disabled', 'true');
+      }
+
+      renderDBTables();
+    }
+
+    function renderDBTables() {
+      // Holds
+      const holdsBody = document.getElementById('db-holds-body');
+      holdsBody.innerHTML = '';
+      if (db.holds.length === 0) {
+        holdsBody.innerHTML = '<tr><td colspan="4"><div class="empty-db-state">Holds table is empty</div></td></tr>';
+      } else {
+        db.holds.slice().reverse().forEach(h => {
+          const emailPrefix = usersConfig[h.userId].email.split('@')[0];
+          holdsBody.innerHTML += `
+            <tr>
+              <td><code>${h.id}</code></td>
+              <td>${emailPrefix}</td>
+              <td>${seatsConfig[h.seatId].label}</td>
+              <td><span class="db-badge ${h.status}">${h.status}</span></td>
+            </tr>
+          `;
+        });
+      }
+
+      // Payments
+      const paymentsBody = document.getElementById('db-payments-body');
+      paymentsBody.innerHTML = '';
+      if (db.payments.length === 0) {
+        paymentsBody.innerHTML = '<tr><td colspan="3"><div class="empty-db-state">Payments table is empty</div></td></tr>';
+      } else {
+        db.payments.slice().reverse().forEach(p => {
+          paymentsBody.innerHTML += `
+            <tr>
+              <td><code>${p.seatHoldId}</code></td>
+              <td>$${(p.amountCents / 100).toFixed(2)}</td>
+              <td><span class="db-badge ${p.status === 'requires_review' ? 'review' : p.status}">${p.status.replace('_', ' ')}</span></td>
+            </tr>
+          `;
+        });
+      }
+
+      // Webhook Inbox Events
+      const eventsBody = document.getElementById('db-events-body');
+      eventsBody.innerHTML = '';
+      if (db.events.length === 0) {
+        eventsBody.innerHTML = '<tr><td colspan="2"><div class="empty-db-state">Inbox is empty</div></td></tr>';
+      } else {
+        db.events.slice().reverse().forEach(e => {
+          const processedLabel = e.processedAt ? 'Processed' : 'Pending';
+          const badgeClass = e.processedAt ? 'succeeded' : 'review';
+          eventsBody.innerHTML += `
+            <tr>
+              <td><code>${e.eventType}</code></td>
+              <td><span class="db-badge ${badgeClass}">${processedLabel}</span></td>
+            </tr>
+          `;
+        });
+      }
+    }
+
+    function resetSimulation() {
+      db = {
+        holds: [],
+        payments: [],
+        reservations: [],
+        events: []
+      };
+      document.getElementById('sim-console-logs').innerHTML = '';
+      log("Reset: All database sessions and payments mock cleared.", 'warning');
+      updateUI();
+    }
+
+    // Auto sweeper loop ticker for simulator frontend
+    setInterval(() => {
+      const expiredCount = expireHoldsSync();
+      if (expiredCount > 0) {
+        log(`Client-side event: ${expiredCount} hold count expired automatically.`, 'warning');
+        updateUI();
+      }
+      
+      if (db.holds.some(h => h.status === 'active')) {
+        updateUI();
+      }
+    }, 1000);
+
+    resetSimulation();
+  </script>
+</body>
+</html>
